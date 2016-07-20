@@ -115,12 +115,24 @@ False".format(mode))
 		# self._allObjTypes.add('devconfig')
 		self._succesfulInit = False
 		try:
-			# Need to talk to Mike about getting new objtypes and hutch into
-			# the pmgr.
-			# High level architecture would be:
-			# 	- Hutch: devconfig
-			# 	- Objtypes:
-			# 		- 
+			# Adding new object types doesnt seem particularly easy, and not only
+			# from a technical point of view.
+			
+			# The sql server also hosts the databases for the elog, exp files and 
+			# other essential beamline databases, so adding entries needs some 
+			# level of supervision. And even if adding values is scriptified,
+			# there isnt a universal way to check for safety on the inputs.
+
+			# Perhaps what could be done is having add be more of a request,
+			# where someone specifies the parameters they want and then an email
+			# gets sent out to someone (me or Mike) to review the entries before
+			# approving.
+
+			# As for actually adding objtypes, the bulk of it is in creating the
+			# various .sql files in the /DB directory of the pmgr. Look there for
+			# the structure behind the ims_motor objtype to add new ones. After
+			# that, mysql commands have to be executed to actually add the new 
+			# files to the pmgr.
 			self._pmgr = self._getPmgr('devconfig', 'devconfig')
 
 			# ...
