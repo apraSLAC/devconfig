@@ -1,8 +1,8 @@
 ,"Hutches,ObjTypes",hutchAliases,hutchAliases,objTypeNames,objTypeIDs,savePreHooks,savePostHooks,applyPreHooks,applyPostHooks,verbosity,logLevel,loggingPath,zenity
-0,"('amo', 'ims_motor')",sxd,sxd,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,low,INFO,,False
-1,"('sxr', 'ims_motor')",sxd,sxd,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,low,INFO,,False
-2,"('xpp', 'ims_motor')",hxd,hxd,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,low,INFO,,False
-3,"('xcs', 'ims_motor')",hxd,hxd,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,low,INFO,,False
-4,"('cxi', 'ims_motor')",,,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,low,INFO,,False
-5,"('mfx', 'ims_motor')",,,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,low,INFO,,False
-6,"('mec', 'ims_motor')",,,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,low,INFO,,False
+0,"('amo', 'ims_motor')",sxd,sxd,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+1,"('sxr', 'ims_motor')",sxd,sxd,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+2,"('xpp', 'ims_motor')",hxd,hxd,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+3,"('xcs', 'ims_motor')",hxd,hxd,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+4,"('cxi', 'ims_motor')",,,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+5,"('mfx', 'ims_motor')",,,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+6,"('mec', 'ims_motor')",,,motor,FLD_SN,savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False

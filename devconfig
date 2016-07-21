@@ -28,7 +28,6 @@ class devconfig(object):
 	.Apply()            Apply pmgr values to device
 	.Update()           Search for updates, and/or update devconfig pmgr entries
 	"""
-
 	def __init__(self, **kwargs):
 		# All meta data should be fetched from the pmgr
 		# For now assume singular objType: ims_motor
@@ -37,6 +36,7 @@ class devconfig(object):
 		self._objTypes       = set()      #List of objTypes to use in methods
 		self._localMode      = False      #Run devconfig in local mode
 		# Grab attributes from the pmgr or cfg (set to None or empty for now)
+		self._hutchObjType   = []         #List of (hutch,objType) tuples
 		self._allHutches     = set()      #List of all valid hutches
 		self._allObjTypes    = set()      #List of all valid objTypes
 		self._hutchAliases   = {}         #Dict of alias:hutch(es) pairs
@@ -134,16 +134,31 @@ False".format(mode))
 			# that, mysql commands have to be executed to actually add the new 
 			# files to the pmgr.
 			self._pmgr = self._getPmgr('devconfig', 'devconfig')
-
 			# ...
-			self._succesfulInit = True
-		except InvalidHutchError, InvalidObjTypeError:
-			# This should never happen
-			pass
-		except pmgrInitError:
+			# Load everything from the pmgr
+			# ...
+			self._successfulInit = True
+		except pmgrInitError, InvalidHutchError, InvalidObjTypeError:
 			# Initialize in local mode
-			pass
-
+			self._metaData       = pd.read_csv('localMode.csv')
+			self._allHutches     = self._getData('Hutches,ObjTypes')
+			self._allHutches     = self._getData('Hutches,ObjTypes', set)[0]
+			self._allObjTypes    = self._getData('Hutches,ObjTypes', set)[1]
+			self._hutchAliases   = self._getData('hutchAliases')
+			self._objTypeNames   = self._getData('objTypeNames')
+			self._objTypeIDs     = self._getData('objTypeIDs')
+			self._savePreHooks   = self._getData('savePreHooks')
+			self._savePostHooks  = self._getData('savePostHooks')
+			self._applyPreHooks  = self._getData('applyPreHooks')
+			self._applyPostHooks = self._getData('applyPostHooks')
+			self._verbosity      = self._getData('verbosity')
+			self._logLevel       = self._getData('logLevel')
+			self._loggingPath    = self._getData('loggingPath')
+			self._zenity         = self._getData('zenity')
+			self._validLogLevels = set("DEBUG", "INFO", "WARNING", 
+			                           "ERROR", "CRITICAL")
+			self._successsfulInit = True
+			
 	def _getPmgr(self, objType, hutch):
 		"""
 		Returns a pmgr object with the inputted objType and hutch. Because only
@@ -164,12 +179,18 @@ False".format(mode))
 		except:
 			raise pmgrInitError(objType, hutch)
 		return pmgr
+	
+	def _getData(self, name, inpType=dict):
+		data    = self._metaData
+		colName = 
+	    if inpType is dict:
+		    return pd.Series(self._metaData
 
 	def _setLocalAttrs(self):
 		"""
 	    Grabs as many devconfig pmgr-attributes from a local cfg file as it can.
 		"""
-		# Look to see if there is a way to 
+		pass
 
 	def _initLogger(self):
 		# Make sure to handle concurrent devconfig use correctly
@@ -196,7 +217,6 @@ False".format(mode))
 				kwargs["hutches"]).intersection(self._allHutches): 
 			print "Invalid hutch entry"
 
-    
 	def View(self, ID):
 		raise NotImplementedError()
 
@@ -224,7 +244,7 @@ False".format(mode))
 	def Revert(self):
 		raise NotImplementedError()
 
-	def Update(self):
+	def Refresh(self):
 		raise NotImplementedError()
 
 	#############################################################################
@@ -464,3 +484,13 @@ False".format(mode))
 		self._updateDict(self._logLevels, logLevelDict, 
 		                 validKeys = self._allHutches, 
 		                 validVals = self._validLogLevels)
+
+
+#################################################################################
+#                             Stand Alone Routines                              #
+#################################################################################
+
+# def diff(*args):
+# 	dCfg = 
+
+
