@@ -4,11 +4,17 @@ from pprint import pprint
 
 # (hutches,objtypes) hutchaliases objtypeNames objTypeIDs saveprehooks saveposthooks applyprehooks applyposthooks verbosity loglevel logpath zenity
 
-dCfgData = {'Hutches,ObjTypes': [('amo', 'ims_motor'), ('sxr', 'ims_motor'),
-                                 ('xpp', 'ims_motor'), ('xcs', 'ims_motor'),
-                                 ('cxi', 'ims_motor'), ('mfx', 'ims_motor'),
-                                 ('mec', 'ims_motor')],
-            'hutchAliases': {'sxd', 'sxd', 'hxd', 'hxd', '', '', ''],
+dCfgData = {'HutchesObjTypes': [('amo', 'ims_motor'), ('sxr', 'ims_motor'),
+                                ('xpp', 'ims_motor'), ('xcs', 'ims_motor'),
+                                ('cxi', 'ims_motor'), ('mfx', 'ims_motor'),
+                                ('mec', 'ims_motor')],
+            'hutchAliases': [('sxd', 'all'), 
+                             ('sxd', 'all'), 
+                             ('hxd', 'all'), 
+                             ('hxd', 'all'), 
+                             ('all',), 
+                             ('all',), 
+                             ('all',)],
             'objTypeNames': ['motor', 'motor', 'motor', 'motor', 'motor', 
                              'motor', 'motor'],
             'objTypeIDs': ['FLD_SN', 'FLD_SN', 'FLD_SN', 'FLD_SN', 'FLD_SN', 
@@ -35,7 +41,7 @@ dCfgData = {'Hutches,ObjTypes': [('amo', 'ims_motor'), ('sxr', 'ims_motor'),
             'loggingPath': ['', '', '', '', '', '', ''],
             'zenity': [False, False, False, False, False, False, False]
             }
-dCfgDF = pd.DataFrame(dCfgData, columns=['Hutches,ObjTypes', 'hutchAliases',
+dCfgDF = pd.DataFrame(dCfgData, columns=['HutchesObjTypes', 'hutchAliases',
                                          'hutchAliases', 'objTypeNames', 
                                          'objTypeIDs', 'savePreHooks', 
                                          'savePostHooks', 'applyPreHooks', 
