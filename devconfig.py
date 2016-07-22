@@ -12,6 +12,8 @@ from sys import exit
 from os import system
 from ConfigParser import SafeConfigParser
 from ast import literal_eval
+from collections import Iterable
+from psp import Pv
 
 class devconfig(object):
 	"""
@@ -32,37 +34,41 @@ class devconfig(object):
 	def __init__(self, **kwargs):
 		# All meta data should be fetched from the pmgr
 		# For now assume singular objType: ims_motor
-		self._hutches        = set()      #List of hutches to use in methods
-		self._objTypes       = set()      #List of objTypes to use in methods
-		self._localMode      = False      #Run devconfig in local mode
-		self._allMetaData    = None       #Pd df initialized if loading from df
-		self._hutchObjType   = []         #List of (hutch,objType) tuples
-		self._allHutches     = set()      #List of all valid hutches
-		self._allObjTypes    = set()      #List of all valid objTypes
-		self._hutchAliases   = {}         #Dict of hutch:(aliases) pairs
-		self._objTypeNames   = {}         #Dict of objtype:device name pairs
-		self._objTypeIDs     = {}         #Dict of objType:Identifying FLD pairs
-		self._savePreHooks   = {}         #Dict of save objtype:prehook pairs
-		self._savePostHooks  = {}         #Dict of save objtype:posthook pairs
-		self._applyPreHooks  = {}         #Dict of apply objtype:prehook pairs
-		self._applyPostHooks = {}         #Dict of apply objtype:posthook pairs
-		self._verbosity      = {}         #Dict of hutch:verbosity level pairs
-		self._logLevel       = {}         #Dict of hutch:logging level pairs
-		self._loggingPath    = {}         #Dict of hutch:logging path pairs
-		self._validLogLevels = set()      #Set of the valid logging levels
-		self._aliases        = set()      #Set of all known aliases
-		self._logger         = None       #devconfig logger
-		self._zenity         = {}         #Dict of hutch:T/F for zenity popups
-		self._pmgr           = None       #Pmgr Obj used for devconfig operations
-		self._successfulInit = False      #Attr to check if init was successful
-		self._cachedObjs     = {}         #Dict of (SN,objType,hutch):ObjFLD Dict
-		self._cachedCfgs     = {}         #Dict of (name,objType,hutch):cfgFLD Dict
+		self._hutches         = set()      #List of hutches to use in methods
+		self._objTypes        = set()      #List of objTypes to use in methods
+		self._localMode       = False      #Run devconfig in local mode
+		self._globalLocalMode = False      #
+		self._allMetaData     = None       #Pd df initialized if loading from df
+		self._hutchObjType    = []         #List of (hutch,objType) tuples
+		self._allHutches      = set()      #List of all valid hutches
+		self._allObjTypes     = set()      #List of all valid objTypes
+		self._hutchAliases    = {}         #Dict of hutch:(aliases) pairs
+		self._objTypeNames    = {}         #Dict of objtype:device name pairs
+		self._objTypeIDs      = {}         #Dict of objType:Identifying FLD pairs
+		self._savePreHooks    = {}         #Dict of save objtype:prehook pairs
+		self._savePostHooks   = {}         #Dict of save objtype:posthook pairs
+		self._applyPreHooks   = {}         #Dict of apply objtype:prehook pairs
+		self._applyPostHooks  = {}         #Dict of apply objtype:posthook pairs
+		self._verbosity       = {}         #Dict of hutch:verbosity level pairs
+		self._logLevel        = {}         #Dict of hutch:logging level pairs
+		self._loggingPath     = {}         #Dict of hutch:logging path pairs
+		self._validLogLevels  = set()      #Set of the valid logging levels
+		self._aliases         = set()      #Set of all known aliases
+		self._logger          = None       #devconfig logger
+		self._zenity          = {}         #Dict of hutch:T/F for zenity popups
+		self._pmgr            = None       #Pmgr Obj used for devconfig operations
+		self._successfulInit  = False      #Attr to check if init was successful
+		self._cachedObjs      = {}         #Dict of (SN,objType,hutch):ObjFLD Dict
+		self._cachedCfgs      = {}         #Dict of (name,objType,hutch):cfgFLD Dict
 		try:
 			self._getAttrsPmgr()          #Looks up devconfig data in the pmgr
 		except LocalModeEnabled:
 			self._getAttrsLocal()
 		self._initLogger()                #Setup the logger
 		self._setInstanceAttrs(kwargs)    #Fills in instance attrs using inputs
+		self._setPmgr
+
+		self._objTypeFLDs     = {}
 
 
 	#############################################################################
@@ -243,10 +249,6 @@ False".format(mode))
 		# Make sure to handle concurrent devconfig use
 		pass
 
-	#############################################################################
-	#                          Outward Facing Methods                           #
-	#############################################################################
-
 	def Gui(self, **kwargs):
 		"""
 		Launches the parameter manager gui for specified hutch and objType. Will
@@ -276,8 +278,53 @@ False".format(mode))
 	def Edit(self):
 		raise NotImplementedError()
 
-	def Diff(self):
-		raise NotImplementedError()
+	#############################################################################
+	#                                   Diff                                    #
+	#############################################################################
+
+	# Start here
+	# The main issue at the moment is that previously to get a list of fields to 
+	# print the live config of a device, you need to probe a particular pmgr
+	# instance and get the fields from one of the pmgr attributes - objflds
+
+	# This should not be done here because a list of fields for each objtype 
+	# should be treated as metadata and not need the pmgr to access. So the 
+	# fields should be saved somewhere devconfig can access without looking into
+	# the pmgr so devices can still be viewed without it.
+
+	# Also another thing to think about is how to handle the low level functions
+	# that were put intil utilsPlus.
+	
+	def Diff(self, **kwargs):
+		"""
+		Method that prints the diffs between two different sources. Valid pairs
+		are two live configs, a live and pmgr config, and two pmgr configs.
+		"""
+		self._setInstanceAttrs(kwargs)
+		PVs = self._processKWArg(kwargs, "pv", None) 
+		SNs = self._processKWArg(kwargs, "sn", None)
+		if len(PVs) == 2:
+			liveConfigs = self._getLiveConfigs(PVs)
+
+	def _proccessKWArg(self, kwargs, kw, defaultVal = None, outType = list):
+		"""
+		Processes a key word argument and performs any preprocessing necessary.
+		"""
+		arg = kwargs.get(kw, defaultVal)
+		if isiterable(arg):
+			return arg
+		else:
+			return outType(arg)
+
+	def _getLiveConfigs(self, PVs):
+		"""Returns a list of dictionaries of configs for the inputted PVs."""
+		if not isiterable(PVs):
+			PVs = list(PVs)
+		PVs = self._checkPVs(PVs)
+
+	def _checkPVs(self, PVs):
+		"""Checks..."""
+		
 
 	def Import(self):
 		raise NotImplementedError()
@@ -538,10 +585,16 @@ False".format(mode))
 						 validKeys = self._hutchObjType, 
 						 validVals = self._validLogLevels)
 
-
-
-
-
+def isiterable(obj):
+	"""
+	Function that determines if an object is an iterable, but not including 
+	strings.
+	"""
+	if isinstance(obj, basestring):
+		return False
+	else:
+		return isinstance(obj, Iterable)
+		
 #################################################################################
 #                             Stand Alone Routines                              #
 #################################################################################
