@@ -45,6 +45,7 @@ class devconfig(object):
 		self._hutchAliases    = {}         #Dict of hutch:(aliases) pairs
 		self._objTypeNames    = {}         #Dict of objtype:device name pairs
 		self._objTypeIDs      = {}         #Dict of objType:Identifying FLD pairs
+		self._objTypeKeys     = {}         #Dict of(hutch,objType):keys
 		self._objTypeFLDMaps  = {}         #Dict of objType:FldMap pairs
 		self._savePreHooks    = {}         #Dict of save objtype:prehook pairs
 		self._savePostHooks   = {}         #Dict of save objtype:posthook pairs
@@ -255,10 +256,33 @@ False".format(mode))
 				                                            index_col = 0)
 		except:
 			print "Failed to read fldMaps."
+			# Do more than just print for final rel
+			
+	# def _objTypeFieldDict(self, objType):
+	# 	"""Returns a dictionary of 
+
 
 	def _initLogger(self):
 		# Make sure to handle concurrent devconfig use
 		pass
+
+	def _listFieldsWith(self, objType, property, val):
+		"""Return a list of fields which have their 'property' set to 'value'."""
+		# def listObjFields(pmgr):
+		#     return listFieldsWith(pmgr, "obj", True)
+		# def listCfgFields(pmgr):
+		#     return listFieldsWith(pmgr, "obj", False)
+		fldDict = self._objTypeFLDMaps[objType]
+		return fldDict[fldDict[property] == val].index.tolist()
+	
+	def _listObjFields(self, objType):
+		"""Returns a list of obj fields."""
+		return self._listFieldsWith(objType, 'obj', True)
+
+	def _listCfgFields(self, objType):
+		"""Returns a list of cfg fields."""
+		return self._listFieldsWith(objType, 'obj', False)
+		
 
 	def Gui(self, **kwargs):
 		"""
@@ -293,19 +317,6 @@ False".format(mode))
 	#############################################################################
 	#                                   Diff                                    #
 	#############################################################################
-
-	# Start here
-	# The main issue at the moment is that previously to get a list of fields to 
-	# print the live config of a device, you need to probe a particular pmgr
-	# instance and get the fields from one of the pmgr attributes - objflds
-
-	# This should not be done here because a list of fields for each objtype 
-	# should be treated as metadata and not need the pmgr to access. So the 
-	# fields should be saved somewhere devconfig can access without looking into
-	# the pmgr so devices can still be viewed without it.
-
-	# Also another thing to think about is how to handle the low level functions
-	# that were put intil utilsPlus.
 	
 	def Diff(self, **kwargs):
 		"""
@@ -315,8 +326,20 @@ False".format(mode))
 		self._setInstanceAttrs(kwargs)
 		PVs = self._processKWArg(kwargs, "pv", None) 
 		SNs = self._processKWArg(kwargs, "sn", None)
+
+		
+		
+		# Check the PVs and SNs
+		# Comparing 2 inputted pvs for diffs
 		if len(PVs) == 2:
-			liveConfigs = self._getLiveConfigs(PVs)
+		    # Check if objtype is set
+		    # - if not, check the keys for an objtype and use fldDict if found
+		    # - - If not, probe for objtype. Ask to add objtype key
+		    # Print diffs
+
+		    liveFlds_1 = self._getLiveFldDict(PV[0])
+		    liveFlds_2 = self._getLiveFldDict(PV[1])
+		    
 
 	def _proccessKWArg(self, kwargs, kw, defaultVal = None, outType = list):
 		"""
@@ -328,10 +351,8 @@ False".format(mode))
 		else:
 			return outType(arg)
 
-	def _getLiveConfigs(self, PVs):
-		"""Returns a list of dictionaries of configs for the inputted PVs."""
-		if not isiterable(PVs):
-			PVs = list(PVs)
+	def _getLiveFldDict(self, PV):
+		"""Returns a dictionary of fields to values for the inputted PV."""
 		PVs = self._checkPVs(PVs)
 
 	def _checkPVs(self, PVs):
@@ -354,10 +375,11 @@ False".format(mode))
 		"""Reinitializes the metadata using the pmgr or the csv."""
 		if local is not None and isinstance(local, bool):
 			self._localMode = local
-		try:
-			self._getAttrsPmgr()
-		except LocalModeEnabled:
-			self._getAttrsLocal()
+		self._getAttrs()
+		# try:
+		# 	self._getAttrsPmgr()
+		# except LocalModeEnabled:
+		# 	self._getAttrsLocal()
 
 	#############################################################################
 	#                              Property Methods                             #
