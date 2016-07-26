@@ -56,4 +56,4 @@ dCfgDF = pd.DataFrame(dCfgData, columns=['hutch', 'objTypes', 'globalMode',
                                          'applyPostHooks', 'verbosity', 
                                          'logLevel', 'loggingPath', 'zenity'])
 if __name__ == "__main__":
-	dCfgDF.to_csv('localMode.csv')
+	dCfgDF.to_csv('db/localMode.csv')

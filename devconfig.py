@@ -55,9 +55,9 @@ class devconfig(object):
 		self._zenity          = DataFrame()   #DF of hutch, objType, bool
 		self._objTypeFLDMaps  = {}            #Dict of objType:FldMapDF pairs
 		self._aliases         = set()         #Set of all known aliases
-		self._pmgr            = None          #Pmgr Obj used for devconfig operations
-		self._successfulInit  = False         #Attr to check if init was successful
+		self._pmgr            = None          #Pmgr used for dcfg operations
 		self._logger          = None        #devconfig logger
+		# self._successfulInit  = False         #Attr to check if init was successful
 		self._setAttrs()
 		# try:
 		# 	self._getAttrsPmgr()          #Looks up devconfig data in the pmgr
@@ -68,7 +68,6 @@ class devconfig(object):
 		# self._setPmgr
 		# self._cachedObjs      = {}          #Dict of (SN,objType,hutch):ObjFLD Dict
 		# self._cachedCfgs      = {}          #Dict of (name,objType,hutch):cfgFLD Dict
-
 
 	#############################################################################
 	#                           Initialization Methods                          #
@@ -133,7 +132,7 @@ class devconfig(object):
 		# self._allObjTypes.add('devconfig')
 		self._successfulInit = False
 		try:
-			if self._localMode: raise LocalModeEnabled
+			if self._mode == "local": raise LocalModeEnabled
 			# Adding new object types doesnt seem particularly easy, and not only
 			# from a technical point of view.
 			
@@ -206,27 +205,6 @@ class devconfig(object):
 		self._loggingPath     = self._getSlice('loggingPath')
 		self._zenity          = self._getSlice('zenity')
 		self._aliases         = self._getAliases()
-		# self._validLogLevels  = {"DEBUG","INFO","WARNING","ERROR","CRITICAL"}
-
-		# self._hutches         = set()         #Set of hutches to be used
-		# self._objTypes        = set()         #Set of objTypes to be used
-		# self._mode            = "pmgr"        #Mode for local behavior
-		# self._allMetaData     = DataFrame()   #DF of all the metadata
-		# self._allHutches      = set()         #Set of all valid hutches
-		# self._allObjTypes     = set()         #Set of all valid objTypes
-		# self._globalMode      = "pmgr"        #DF of hutch, objType, mode 
-		# self._hutchAliases    = DataFrame()   #DF of hutch, aliases
-		# self._objTypeNames    = DataFrame()   #DF of hutch, objType, Names
-		# self._objTypeIDs      = DataFrame()   #DF of hutch, objType, IDs
-		# self._objTypeKeys     = DataFrame()   #DF of hutch, objType, keys
-		# self._savePreHooks    = DataFrame()   #DF of hutch, objType, sPrH
-		# self._savePostHooks   = DataFrame()   #DF of hutch, objType, sPoH
-		# self._applyPreHooks   = DataFrame()   #DF of hutch, objType, aPrH
-		# self._applyPostHooks  = DataFrame()   #DF of hutch, objType, aPoH
-		# self._verbosity       = DataFrame()   #DF of hutch, objType, verbosity
-		# self._logLevel        = DataFrame()   #DF of hutch, objType, logLevel
-		# self._loggingPath     = DataFrame()   #DF of hutch, objType, path
-		# self._zenity          = DataFrame()   #DF of hutch, objType, bool
 
 	def _readLocalCSV(self, csv):
 		"""
@@ -265,26 +243,9 @@ class devconfig(object):
 		else:
 			raise TypeError("Invalid outType entry: '{0}'.".format(outType))
 
-		# data = self._allMetaData
-		# if outType is list:
-		# 	if index is None:
-		# 		return data[name].tolist()
-		# 	else:
-		# 		return data[name].tolist()[index]
-		# elif outType is set:
-		# 	if index is None:
-		# 		return set(data[name].tolist())
-		# 	else:
-		# 		return set(zip(*data[name].tolist())[index])
-		# elif outType is dict:
-		# 	return Series(
-		# 		data[name].values, index = data.HutchesObjTypes).to_dict()
-		# else:
-		# 	raise TypeError("outType must be list, set or dict.")		
-
 	def _getAliases(self):
 		"""Returns a set of all the known aliases."""
-		allAliases = self._hutchAliases.values()
+		allAliases = self._hutchAliases.hutchAliases.values
 		return set([alias for tupAlias in allAliases for alias in tupAlias])
 
 	def _getObjTypeFLDMaps(self):
@@ -296,10 +257,6 @@ class devconfig(object):
 		except:
 			print "Failed to read fldMaps."
 			# Do more than just print for final rel
-			
-	# def _objTypeFieldDict(self, objType):
-	# 	"""Returns a dictionary of 
-
 
 	def _initLogger(self):
 		# Make sure to handle concurrent devconfig use
@@ -307,10 +264,6 @@ class devconfig(object):
 
 	def _listFieldsWith(self, objType, property, val):
 		"""Return a list of fields which have their 'property' set to 'value'."""
-		# def listObjFields(pmgr):
-		#     return listFieldsWith(pmgr, "obj", True)
-		# def listCfgFields(pmgr):
-		#     return listFieldsWith(pmgr, "obj", False)
 		fldDict = self._objTypeFLDMaps[objType]
 		return fldDict[fldDict[property] == val].index.tolist()
 	
@@ -363,11 +316,10 @@ class devconfig(object):
 		are two live configs, a live and pmgr config, and two pmgr configs.
 		"""
 		self._setInstanceAttrs(kwargs)
+		
 		PVs = self._processKWArg(kwargs, "pv", None) 
 		SNs = self._processKWArg(kwargs, "sn", None)
 
-		
-		
 		# Check the PVs and SNs
 		# Comparing 2 inputted pvs for diffs
 		if len(PVs) == 2:
@@ -375,6 +327,7 @@ class devconfig(object):
 		    # - if not, check the keys for an objtype and use fldDict if found
 		    # - - If not, probe for objtype. Ask to add objtype key
 		    # Print diffs
+		    self._checkPVs(PVs)
 
 		    liveFlds_1 = self._getLiveFldDict(PV[0])
 		    liveFlds_2 = self._getLiveFldDict(PV[1])
@@ -389,6 +342,35 @@ class devconfig(object):
 			return arg
 		else:
 			return outType(arg)
+
+	def _inferFromPVs(self, PVs):
+		if not self._hutches:
+			for pv in PVs:
+				for hutch in self._allHutches:
+					if hutch in pv.lower():
+						self._hutches.add(hutch)
+			if not self._hutches:
+			    hutch = input("Could not infer hutch from PV, please enter \
+hutch: ")
+			    self._setHuches(hutch)
+		
+		# Start here
+		# The goal of the logic here is to infer the hutch and objtype from the
+		# pv if it isnt provided. Its turning out to be slightly more convoluted
+		# than I expected it to be.
+
+		# Consider the situation where we want to compare an amo motor cfg with
+		# an sxr one. Current setup doesnt allow for that - all comparisons use
+		# the same hutch/objtype attrs. Need to come up with a better solution.
+		if not self._objTypes:
+			for pv in PVs:
+				for objType in self._allObjTypes:
+					self.
+					
+	def _getHutchObjTypeVal(self, DF, val, hutch, objType):
+		return DF[(DF.hutch == hutch) & (DF.objType == objType)]
+
+
 
 	def _getLiveFldDict(self, PV):
 		"""Returns a dictionary of fields to values for the inputted PV."""
@@ -419,10 +401,16 @@ class devconfig(object):
 		# except LocalModeEnabled:
 		# 	self._getAttrsLocal()
 
+
+
+
+
 	#############################################################################
 	#                              Property Methods                             #
 	#############################################################################
 	
+	# These are all still written assuming dictionaries for the attributes, so
+	# they need to be redone for DFs.
 	def _returnDict(self, attr, **kwargs):
 		"""Returns attrDict of the attr."""
 		keys      = set(kwargs.get("keys", set()))
@@ -458,204 +446,204 @@ class devconfig(object):
 	#                            devconfig Properties                           #
 	#############################################################################
 
-	# Instance properties
-	@property
-	def hutches(self):
-		"""Returns a set of devconfig instance hutches."""
-		return self._hutches
-	@hutches.setter
-	def hutches(self, *args):
-		"""Sets the instance hutches to the inputted tuple/list/set."""
-		hutches = set()
-		for arg in args:
-			hutches = hutches.union(set(arg))
-		self._setHutches(hutches)
-
-	@property
-	def objTypes(self):
-		"""Returns a set of devconfig instance objTypes."""
-		return self._objTypes
-	@objTypes.setter
-	def objTypes(self, *args):
-		"""Sets the instance objTypes to the inputed tuple/list/set."""
-		objTypes = set()
-		for arg in args:
-			objTypes = objTypes.union(set(arg))
-		self._setObjTypes(objTypes)
-
-	@property
-	def mode(self):
-		"""Returns the mode devconfig is currently running in."""
-		return self._mode
-	@localMode.setter
-	def mode(self, mode):
-		"""Sets local mode to inputted mode (pmgr/local)."""
-		self._setMode(mode)
-
-	# Parameter manager fields. 
-	@property
-	def allHutches(self):
-		"""Returns a set of all hutches currently in the pmgr."""
-		return self._allHutches
-	@allHutches.setter
-	def allHutches(self, *args):
-		"""Cannot set _allHutches. Included to remove setting functionality."""
-		print "Cannot set allHutches"
-
-	@property
-	def allObjTypes(self, objTypes=set()):
-		"""Returns a set of all objTypes currently in the pmgr."""
-		return self._allObjTypes
-	@allObjTypes.setter
-	def allObjTypes(self, *args):
-		"""Cannot set _allObjTypes. Included to remove setting functionality."""
-		print "Cannot set allObjTypes"
-		
+	# # Instance properties
 	# @property
-	# def hutchAliases(self, hutches=set()):
-	# 	# Will need to modify the set and return dict methods for hutch aliases
-	# 	# as the values are going to be sets.
-	# 	raise NotImplementedError()
-	# @hutchAliases.setter
-	# def hutchAliases(self, hutchAliasesDict):
-	# 	# Need to make sure that when setting aliases that all hutches are valid
-	# 	raise NotImplementedError()
+	# def hutches(self):
+	# 	"""Returns a set of devconfig instance hutches."""
+	# 	return self._hutches
+	# @hutches.setter
+	# def hutches(self, *args):
+	# 	"""Sets the instance hutches to the inputted tuple/list/set."""
+	# 	hutches = set()
+	# 	for arg in args:
+	# 		hutches = hutches.union(set(arg))
+	# 	self._setHutches(hutches)
 
-	@property
-	def objTypeNames(self, objTypes=set()):
-		"""Return the real-world names of the objTypes as objType:name dicts."""
-		return self._returnDict(self._objTypeNames, 
-		                        keys      = objTypes,
-		                        validKeys = self._hutchObjType)
-	@objTypeNames.setter
-	def objTypeNames(self, objTypeNamesDict):
-		"""
-		Sets the objType names of the inputted objType(s) to that specified in
-		the dict.
-		"""
-		self._updateDict(self._objTypeNames, objTypeNamesDict,
-						 validKeys = self._hutchObjType)
+	# @property
+	# def objTypes(self):
+	# 	"""Returns a set of devconfig instance objTypes."""
+	# 	return self._objTypes
+	# @objTypes.setter
+	# def objTypes(self, *args):
+	# 	"""Sets the instance objTypes to the inputed tuple/list/set."""
+	# 	objTypes = set()
+	# 	for arg in args:
+	# 		objTypes = objTypes.union(set(arg))
+	# 	self._setObjTypes(objTypes)
 
-	@property
-	def objTypeIDs(self, objTypes=set()):
-		"""Returns the objType identifying field."""
-		return self._returnDict(self._objTypeIDs, 
-		                       keys      = objTypes,
-		                       validKeys = self._hutchObjType)
-	@objTypeIDs.setter
-	def objTypeIDs(self, *args):
-		"""This is included for the purpose of making it unavailable."""
-		# Raise some form of invalid setting error
-		print "Cannot set objType IDs - critical to devconfig functionality."
+	# @property
+	# def mode(self):
+	# 	"""Returns the mode devconfig is currently running in."""
+	# 	return self._mode
+	# @localMode.setter
+	# def mode(self, mode):
+	# 	"""Sets local mode to inputted mode (pmgr/local)."""
+	# 	self._setMode(mode)
 
-	@property
-	def savePreHooks(self, objTypes=set()):
-		"""
-		Returns the path to the functions used as the savePreHook for each
-		objType.
-		"""
-		return self._returnDict(self._savePreHooks, 
-		                       keys      = objTypes,
-		                       validKeys = self._hutchObjType)
-	@savePreHooks.setter
-	def savePreHooks(self, savePreHooksDict):
-		pass
-		"""
-		Sets the path to the functions used as the savePreHooks for an objType.
-		"""
-		self._updateDict(self._savePreHooks, savePreHooksDict,
-						 validKeys = self._hutchObjType)
+	# # Parameter manager fields. 
+	# @property
+	# def allHutches(self):
+	# 	"""Returns a set of all hutches currently in the pmgr."""
+	# 	return self._allHutches
+	# @allHutches.setter
+	# def allHutches(self, *args):
+	# 	"""Cannot set _allHutches. Included to remove setting functionality."""
+	# 	print "Cannot set allHutches"
 
-	@property
-	def savePostHooks(self, objTypes=set()):
-		"""
-		Returns the path to the functions used as the savePostHook for each
-		objType.
-		"""
-		return self._returnDict(self._savePostHooks, 
-		                       keys      = objTypes,
-		                       validKeys = self._hutchObjType)
-	@savePostHooks.setter
-	def savePostHooks(self, savePostHooksDict):
-		"""
-		Sets the path to the functions used as the savePostHooks for an objType.
-		"""
-		self._updateDict(self._savePostHooks, savePostHooksDict,
-						 validKeys = self._hutchObjType)
+	# @property
+	# def allObjTypes(self, objTypes=set()):
+	# 	"""Returns a set of all objTypes currently in the pmgr."""
+	# 	return self._allObjTypes
+	# @allObjTypes.setter
+	# def allObjTypes(self, *args):
+	# 	"""Cannot set _allObjTypes. Included to remove setting functionality."""
+	# 	print "Cannot set allObjTypes"
+		
+	# # @property
+	# # def hutchAliases(self, hutches=set()):
+	# # 	# Will need to modify the set and return dict methods for hutch aliases
+	# # 	# as the values are going to be sets.
+	# # 	raise NotImplementedError()
+	# # @hutchAliases.setter
+	# # def hutchAliases(self, hutchAliasesDict):
+	# # 	# Need to make sure that when setting aliases that all hutches are valid
+	# # 	raise NotImplementedError()
 
-	@property
-	def applyPreHooks(self, objTypes=set()):
-		"""
-		Returns the path to the functions used as the applyPreHook for each
-		objType.
-		"""
-		return self._returnDict(self._applyPreHooks, 
-		                       keys      = objTypes,
-		                       validKeys = self._hutchObjType)
-	@applyPreHooks.setter
-	def applyPreHooks(self, applyPreHooksDict):
-		"""
-		Sets the path to the functions used as the applyPreHooks for an objType.
-		"""
-		self._updateDict(self._applyPreHooks, applyPreHooksDict,
-						 validKeys = self._hutchObjType)
+	# @property
+	# def objTypeNames(self, objTypes=set()):
+	# 	"""Return the real-world names of the objTypes as objType:name dicts."""
+	# 	return self._returnDict(self._objTypeNames, 
+	# 	                        keys      = objTypes,
+	# 	                        validKeys = self._hutchObjType)
+	# @objTypeNames.setter
+	# def objTypeNames(self, objTypeNamesDict):
+	# 	"""
+	# 	Sets the objType names of the inputted objType(s) to that specified in
+	# 	the dict.
+	# 	"""
+	# 	self._updateDict(self._objTypeNames, objTypeNamesDict,
+	# 					 validKeys = self._hutchObjType)
 
-	@property
-	def applyPostHooks(self, objTypes=set()):
-		"""
-		Returns the path to the functions used as the applyPostHook for each
-		objType.
-		"""
-		return self._returnDict(self._applyPostHooks, 
-		                       keys      = objTypes,
-		                       validKeys = self._hutchObjType)
-	@applyPostHooks.setter
-	def applyPostHooks(self, applyPostHooksDict):
-		"""
-		Sets the path to the functions used as the applyPostHooks for an objType.
-		"""
-		self._updateDict(self._applyPostHooks, applyPostHooksDict,
-						 validKeys = self._hutchObjType)
+	# @property
+	# def objTypeIDs(self, objTypes=set()):
+	# 	"""Returns the objType identifying field."""
+	# 	return self._returnDict(self._objTypeIDs, 
+	# 	                       keys      = objTypes,
+	# 	                       validKeys = self._hutchObjType)
+	# @objTypeIDs.setter
+	# def objTypeIDs(self, *args):
+	# 	"""This is included for the purpose of making it unavailable."""
+	# 	# Raise some form of invalid setting error
+	# 	print "Cannot set objType IDs - critical to devconfig functionality."
 
-	@property
-	def verbosity(self, hutches=set()):
-		"""
-		Returns a dictionary of the verbosity level set for the inputted 
-		hutch(es). Returns all of them if none is specified.
-		"""
-		return self._returnDict(self._verbosity, 
-		                       keys      = hutches,
-		                       validKeys = self._hutchObjType)
+	# @property
+	# def savePreHooks(self, objTypes=set()):
+	# 	"""
+	# 	Returns the path to the functions used as the savePreHook for each
+	# 	objType.
+	# 	"""
+	# 	return self._returnDict(self._savePreHooks, 
+	# 	                       keys      = objTypes,
+	# 	                       validKeys = self._hutchObjType)
+	# @savePreHooks.setter
+	# def savePreHooks(self, savePreHooksDict):
+	# 	pass
+	# 	"""
+	# 	Sets the path to the functions used as the savePreHooks for an objType.
+	# 	"""
+	# 	self._updateDict(self._savePreHooks, savePreHooksDict,
+	# 					 validKeys = self._hutchObjType)
 
-	@verbosity.setter
-	def verbosity(self, verbosityDict):
-		"""
-		Sets the verbosity level of the hutch(es) to that specified in the 
-		inputted {hutch:level} dictionary.
-		"""
-		self._updateDict(self._verbosity, verbosityDict, 
-						 validKeys = self._hutchObjType, 
-						 validVals = self._validLogLevels)
+	# @property
+	# def savePostHooks(self, objTypes=set()):
+	# 	"""
+	# 	Returns the path to the functions used as the savePostHook for each
+	# 	objType.
+	# 	"""
+	# 	return self._returnDict(self._savePostHooks, 
+	# 	                       keys      = objTypes,
+	# 	                       validKeys = self._hutchObjType)
+	# @savePostHooks.setter
+	# def savePostHooks(self, savePostHooksDict):
+	# 	"""
+	# 	Sets the path to the functions used as the savePostHooks for an objType.
+	# 	"""
+	# 	self._updateDict(self._savePostHooks, savePostHooksDict,
+	# 					 validKeys = self._hutchObjType)
 
-	@property
-	def logLevel(self, hutches=set()):
-		"""
-		Returns a dictionary of the logLevel level set for the inputted 
-		hutch(es). Returns all of them if none is specified.
-		"""
-		return self._returnDict(self._logLevel, 
-		                       keys      = hutches,
-		                       validKeys = self._hutchObjType)
+	# @property
+	# def applyPreHooks(self, objTypes=set()):
+	# 	"""
+	# 	Returns the path to the functions used as the applyPreHook for each
+	# 	objType.
+	# 	"""
+	# 	return self._returnDict(self._applyPreHooks, 
+	# 	                       keys      = objTypes,
+	# 	                       validKeys = self._hutchObjType)
+	# @applyPreHooks.setter
+	# def applyPreHooks(self, applyPreHooksDict):
+	# 	"""
+	# 	Sets the path to the functions used as the applyPreHooks for an objType.
+	# 	"""
+	# 	self._updateDict(self._applyPreHooks, applyPreHooksDict,
+	# 					 validKeys = self._hutchObjType)
 
-	@logLevel.setter
-	def logLevel(self, logLevelDict):
-		"""
-		Sets the logLevel level of the hutch(es) to that specified in the 
-		inputted {hutch:level} dictionary.
-		"""
-		self._updateDict(self._logLevel, logLevelDict, 
-						 validKeys = self._hutchObjType, 
-						 validVals = self._validLogLevels)
+	# @property
+	# def applyPostHooks(self, objTypes=set()):
+	# 	"""
+	# 	Returns the path to the functions used as the applyPostHook for each
+	# 	objType.
+	# 	"""
+	# 	return self._returnDict(self._applyPostHooks, 
+	# 	                       keys      = objTypes,
+	# 	                       validKeys = self._hutchObjType)
+	# @applyPostHooks.setter
+	# def applyPostHooks(self, applyPostHooksDict):
+	# 	"""
+	# 	Sets the path to the functions used as the applyPostHooks for an objType.
+	# 	"""
+	# 	self._updateDict(self._applyPostHooks, applyPostHooksDict,
+	# 					 validKeys = self._hutchObjType)
+
+	# @property
+	# def verbosity(self, hutches=set()):
+	# 	"""
+	# 	Returns a dictionary of the verbosity level set for the inputted 
+	# 	hutch(es). Returns all of them if none is specified.
+	# 	"""
+	# 	return self._returnDict(self._verbosity, 
+	# 	                       keys      = hutches,
+	# 	                       validKeys = self._hutchObjType)
+
+	# @verbosity.setter
+	# def verbosity(self, verbosityDict):
+	# 	"""
+	# 	Sets the verbosity level of the hutch(es) to that specified in the 
+	# 	inputted {hutch:level} dictionary.
+	# 	"""
+	# 	self._updateDict(self._verbosity, verbosityDict, 
+	# 					 validKeys = self._hutchObjType, 
+	# 					 validVals = self._validLogLevels)
+
+	# @property
+	# def logLevel(self, hutches=set()):
+	# 	"""
+	# 	Returns a dictionary of the logLevel level set for the inputted 
+	# 	hutch(es). Returns all of them if none is specified.
+	# 	"""
+	# 	return self._returnDict(self._logLevel, 
+	# 	                       keys      = hutches,
+	# 	                       validKeys = self._hutchObjType)
+
+	# @logLevel.setter
+	# def logLevel(self, logLevelDict):
+	# 	"""
+	# 	Sets the logLevel level of the hutch(es) to that specified in the 
+	# 	inputted {hutch:level} dictionary.
+	# 	"""
+	# 	self._updateDict(self._logLevel, logLevelDict, 
+	# 					 validKeys = self._hutchObjType, 
+	# 					 validVals = self._validLogLevels)
 
 def isiterable(obj):
 	"""
