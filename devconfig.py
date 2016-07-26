@@ -2,8 +2,8 @@
 
 import logging
 import numpy as np
-import pandas as pd
 
+from pandas import DataFrame, Series, read_csv
 from exceptionClasses import *
 from pmgr.pmgrobj import pmgrobj
 from difflib import get_close_matches
@@ -34,34 +34,30 @@ class devconfig(object):
 	def __init__(self, **kwargs):
 		# All meta data should be fetched from the pmgr
 		# For now assume singular objType: ims_motor
-		self._hutches         = set()      #List of hutches to use in methods
-		self._objTypes        = set()      #List of objTypes to use in methods
-		self._localMode       = False      #Run devconfig in local mode
-		self._globalLocalMode = False      #
-		self._allMetaData     = None       #Pd df initialized if loading from df
-		self._hutchObjType    = []         #List of (hutch,objType) tuples
-		self._allHutches      = set()      #List of all valid hutches
-		self._allObjTypes     = set()      #List of all valid objTypes
-		self._hutchAliases    = {}         #Dict of hutch:(aliases) pairs
-		self._objTypeNames    = {}         #Dict of objtype:device name pairs
-		self._objTypeIDs      = {}         #Dict of objType:Identifying FLD pairs
-		self._objTypeKeys     = {}         #Dict of(hutch,objType):keys
-		self._objTypeFLDMaps  = {}         #Dict of objType:FldMap pairs
-		self._savePreHooks    = {}         #Dict of save objtype:prehook pairs
-		self._savePostHooks   = {}         #Dict of save objtype:posthook pairs
-		self._applyPreHooks   = {}         #Dict of apply objtype:prehook pairs
-		self._applyPostHooks  = {}         #Dict of apply objtype:posthook pairs
-		self._verbosity       = {}         #Dict of hutch:verbosity level pairs
-		self._logLevel        = {}         #Dict of hutch:logging level pairs
-		self._loggingPath     = {}         #Dict of hutch:logging path pairs
-		self._validLogLevels  = set()      #Set of the valid logging levels
-		self._aliases         = set()      #Set of all known aliases
-		self._logger          = None       #devconfig logger
-		self._zenity          = {}         #Dict of hutch:T/F for zenity popups
-		self._pmgr            = None       #Pmgr Obj used for devconfig operations
-		self._successfulInit  = False      #Attr to check if init was successful
-		self._cachedObjs      = {}         #Dict of (SN,objType,hutch):ObjFLD Dict
-		self._cachedCfgs      = {}         #Dict of (name,objType,hutch):cfgFLD Dict
+		self._hutches         = set()         #Set of hutches to be used
+		self._objTypes        = set()         #Set of objTypes to be used
+		self._mode            = "pmgr"        #Mode for local behavior
+		self._allMetaData     = DataFrame()   #DF of all the metadata
+		self._allHutches      = set()         #Set of all valid hutches
+		self._allObjTypes     = set()         #Set of all valid objTypes
+		self._globalMode      = "pmgr"        #Default mode set 
+		self._hutchAliases    = DataFrame()   #DF of hutch:aliases
+		self._objTypeNames    = DataFrame()   #DF of hutch, objType, Names
+		self._objTypeIDs      = DataFrame()   #DF of hutch, objType, IDs
+		self._objTypeKeys     = DataFrame()   #DF of hutch, objType, keys
+		self._savePreHooks    = DataFrame()   #DF of hutch, objType, sPrH
+		self._savePostHooks   = DataFrame()   #DF of hutch, objType, sPoH
+		self._applyPreHooks   = DataFrame()   #DF of hutch, objType, aPrH
+		self._applyPostHooks  = DataFrame()   #DF of hutch, objType, aPoH
+		self._verbosity       = DataFrame()   #DF of hutch, objType, verbosity
+		self._logLevel        = DataFrame()   #DF of hutch, objType, logLevel
+		self._loggingPath     = DataFrame()   #DF of hutch, objType, path
+		self._zenity          = DataFrame()   #DF of hutch, objType, bool
+		self._objTypeFLDMaps  = {}            #Dict of objType:FldMapDF pairs
+		self._aliases         = set()         #Set of all known aliases
+		self._pmgr            = None          #Pmgr Obj used for devconfig operations
+		self._successfulInit  = False         #Attr to check if init was successful
+		self._logger          = None        #devconfig logger
 		self._getAttrs()
 		# try:
 		# 	self._getAttrsPmgr()          #Looks up devconfig data in the pmgr
@@ -70,6 +66,8 @@ class devconfig(object):
 		self._initLogger()                #Setup the logger
 		self._setInstanceAttrs(kwargs)    #Fills in instance attrs using inputs
 		# self._setPmgr
+		# self._cachedObjs      = {}          #Dict of (SN,objType,hutch):ObjFLD Dict
+		# self._cachedCfgs      = {}          #Dict of (name,objType,hutch):cfgFLD Dict
 
 
 	#############################################################################
@@ -210,7 +208,7 @@ False".format(mode))
 		method to perform whatever preprocessing is necessary before using the 
 		data.
 		"""
-		df = pd.read_csv(csv)
+		df = read_csv(csv)
 		df.HutchesObjTypes = df.HutchesObjTypes.apply(literal_eval)
 		df.hutchAliases    = df.hutchAliases.apply(literal_eval)
 		df                 = df.replace(np.nan,'', regex=True)
@@ -237,7 +235,7 @@ False".format(mode))
 			else:
 				return set(zip(*data[name].tolist())[index])
 		elif outType is dict:
-			return pd.Series(
+			return Series(
 				data[name].values, index = data.HutchesObjTypes).to_dict()
 		else:
 			raise TypeError("outType must be list, set or dict.")		
@@ -251,7 +249,7 @@ False".format(mode))
 		"""Reads the fld_maps stored in the db folder."""
 		try:
 			for objType in self._allObjTypes:
-				self._objTypeFLDMaps[objType] = pd.read_csv("db/"+objType+".csv",
+				self._objTypeFLDMaps[objType] = read_csv("db/"+objType+".csv",
 				                                            index_col = 0)
 		except:
 			print "Failed to read fldMaps."
