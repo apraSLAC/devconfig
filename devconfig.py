@@ -45,6 +45,7 @@ class devconfig(object):
 		self._hutchAliases    = {}         #Dict of hutch:(aliases) pairs
 		self._objTypeNames    = {}         #Dict of objtype:device name pairs
 		self._objTypeIDs      = {}         #Dict of objType:Identifying FLD pairs
+		self._objTypeFLDMaps  = {}         #Dict of objType:FldMap pairs
 		self._savePreHooks    = {}         #Dict of save objtype:prehook pairs
 		self._savePostHooks   = {}         #Dict of save objtype:posthook pairs
 		self._applyPreHooks   = {}         #Dict of apply objtype:prehook pairs
@@ -60,15 +61,14 @@ class devconfig(object):
 		self._successfulInit  = False      #Attr to check if init was successful
 		self._cachedObjs      = {}         #Dict of (SN,objType,hutch):ObjFLD Dict
 		self._cachedCfgs      = {}         #Dict of (name,objType,hutch):cfgFLD Dict
-		try:
-			self._getAttrsPmgr()          #Looks up devconfig data in the pmgr
-		except LocalModeEnabled:
-			self._getAttrsLocal()
+		self._getAttrs()
+		# try:
+		# 	self._getAttrsPmgr()          #Looks up devconfig data in the pmgr
+		# except LocalModeEnabled:
+		# 	self._getAttrsLocal()
 		self._initLogger()                #Setup the logger
 		self._setInstanceAttrs(kwargs)    #Fills in instance attrs using inputs
-		self._setPmgr
-
-		self._objTypeFLDs     = {}
+		# self._setPmgr
 
 
 	#############################################################################
@@ -123,14 +123,14 @@ class devconfig(object):
 			raise ValueError("Invalid input: '{0}'. Mode must be True or \
 False".format(mode))
 
-	def _getAttrsPmgr(self):
+	def _getAttrs(self):
 		"""Grabs all the devconfig data from the devconfig pmgr entries."""
 		# # Uncomment this after devconfig has been added to the
 		# self._allHutches.add('devconfig')
 		# self._allObjTypes.add('devconfig')
 		self._successfulInit = False
-		if self._localMode: raise LocalModeEnabled
 		try:
+			if self._localMode: raise LocalModeEnabled
 			# Adding new object types doesnt seem particularly easy, and not only
 			# from a technical point of view.
 			
@@ -153,10 +153,12 @@ False".format(mode))
 			# ...
 			# Load everything from the pmgr
 			# ...
-			self._successfulInit = True
-		except (pmgrInitError, InvalidHutchError, InvalidObjTypeError):
+		except (pmgrInitError, InvalidHutchError, InvalidObjTypeError,
+		        LocalModeEnabled):
 			self._getAttrsLocal()
-			self._successfulInit = True
+			
+		self._getObjTypeFLDMaps()
+		self._successfulInit = True
 			
 	def _getPmgr(self, objType, hutch):
 		"""
@@ -245,6 +247,15 @@ False".format(mode))
 		allAliases = self._hutchAliases.values()
 		return set([alias for tupAlias in allAliases for alias in tupAlias])
 
+	def _getObjTypeFLDMaps(self):
+		"""Reads the fld_maps stored in the db folder."""
+		try:
+			for objType in self._allObjTypes:
+				self._objTypeFLDMaps[objType] = pd.read_csv("db/"+objType+".csv",
+				                                            index_col = 0)
+		except:
+			print "Failed to read fldMaps."
+
 	def _initLogger(self):
 		# Make sure to handle concurrent devconfig use
 		pass
@@ -278,7 +289,6 @@ False".format(mode))
 	def Edit(self):
 		raise NotImplementedError()
 
-	def _
 
 	#############################################################################
 	#                                   Diff                                    #
