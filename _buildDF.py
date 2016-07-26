@@ -1,6 +1,6 @@
 import pandas as pd
 from pprint import pprint
-
+# import pickle
 
 # (hutches,objtypes) hutchaliases objtypeNames objTypeIDs saveprehooks saveposthooks applyprehooks applyposthooks verbosity loglevel logpath zenity
 
@@ -48,4 +48,4 @@ dCfgDF = pd.DataFrame(dCfgData, columns=['HutchesObjTypes', 'hutchAliases',
                                          'applyPostHooks', 'verbosity', 
                                          'logLevel', 'loggingPath', 'zenity'])
 if __name__ == "__main__":
-	dCfgDF.to_csv('localMode.csv')
+	dCfgDF.to_pickle('localMode.pkl')
