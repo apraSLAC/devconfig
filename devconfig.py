@@ -197,7 +197,6 @@ False".format(mode))
 		self._savePostHooks   = self._getData('savePostHooks')
 		self._applyPreHooks   = self._getData('applyPreHooks')
 		self._applyPostHooks  = self._getData('applyPostHooks')
-
 		self._verbosity       = self._getData('verbosity')
 		self._logLevel        = self._getData('logLevel')
 		self._loggingPath     = self._getData('loggingPath')
@@ -226,7 +225,7 @@ False".format(mode))
 		is specified, a set of the column if outType is a set, and a list if it
 		is set to list.
 		"""
-		data    = self._allMetaData
+		data = self._allMetaData
 		if outType is list:
 			if index is None:
 				return data[name].tolist()
