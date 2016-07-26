@@ -181,7 +181,7 @@ False".format(mode))
 		"""
 		Grabs as many devconfig pmgr-attributes from a local cfg file as it can.
 		"""
-		self._allMetaData     = self._readLocalCSV('localMode.csv')  #Maybe make this a real path
+		self._allMetaData     = self._readLocalCSV('db/localMode.csv')  #Maybe make this a real path
 		self._hutchObjType    = self._getData('HutchesObjTypes', list)
 		self._allHutches      = self._getData('HutchesObjTypes', set, 0)
 		self._allObjTypes     = self._getData('HutchesObjTypes', set, 1)
@@ -277,6 +277,8 @@ False".format(mode))
 	
 	def Edit(self):
 		raise NotImplementedError()
+
+	def _
 
 	#############################################################################
 	#                                   Diff                                    #
