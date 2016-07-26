@@ -58,7 +58,7 @@ class devconfig(object):
 		self._pmgr            = None          #Pmgr Obj used for devconfig operations
 		self._successfulInit  = False         #Attr to check if init was successful
 		self._logger          = None        #devconfig logger
-		self._getAttrs()
+		self._setAttrs()
 		# try:
 		# 	self._getAttrsPmgr()          #Looks up devconfig data in the pmgr
 		# except LocalModeEnabled:
@@ -81,9 +81,9 @@ class devconfig(object):
 		if "objTypes" in kwargs.keys():
 			self._setObjTypes(kwargs["objTypes"])
 		try:
-		    self._setLocalMode(kwargs["localMode"])
+		    self._setMode(kwargs["mode"])
 		except (ValueError, KeyError):
-			self._localMode = False
+			self._localMode = "pmgr"
 			
 	def _setHutches(self, inpHutches):
 		"""Sets _hutches checking _hutchAliases and _allHutches."""
@@ -114,16 +114,20 @@ class devconfig(object):
 			raise InvalidObjTypeError(inpObjTypes)
 		self._objTypes = validObjTypes
 
-	def _setLocalMode(self, mode):
-		"""Sets local mode. Takes True or False"""
-		if isinstance(mode, bool):
-		    self._localMode = mode
+	def _setMode(self, mode):
+		"""Sets mode. Takes pmgr or local."""
+		if mode.lower() = "pmgr" or mode.lower() == "local":
+		    self._mode = mode
+		elif mode is None:
+			pass
 		else: 
-			raise ValueError("Invalid input: '{0}'. Mode must be True or \
-False".format(mode))
+			raise ValueError("Invalid input: '{0}'. Mode must be 'pmgr' or \
+'local'".format(mode))
 
-	def _getAttrs(self):
-		"""Grabs all the devconfig data from the devconfig pmgr entries."""
+	def _setAttrs(self):
+		"""
+		Sets all the devconfig metadata from either the pmgr or the local DF.
+		"""
 		# # Uncomment this after devconfig has been added to the
 		# self._allHutches.add('devconfig')
 		# self._allObjTypes.add('devconfig')
@@ -154,7 +158,7 @@ False".format(mode))
 			# ...
 		except (pmgrInitError, InvalidHutchError, InvalidObjTypeError,
 		        LocalModeEnabled):
-			self._getAttrsLocal()
+			self._setAttrsLocal()
 			
 		self._getObjTypeFLDMaps()
 		self._successfulInit = True
@@ -178,29 +182,51 @@ False".format(mode))
 			raise pmgrInitError(objType, hutch)
 		return pmgr
 		
-	def _getAttrsLocal(self):
+	def _setAttrsLocal(self):
 		"""
 		Grabs as many devconfig pmgr-attributes from a local cfg file as it can.
 		"""
-		self._allMetaData     = self._readLocalCSV('db/localMode.csv')  #Maybe make this a real path
-		self._hutchObjType    = self._getData('HutchesObjTypes', list)
-		self._allHutches      = self._getData('HutchesObjTypes', set, 0)
-		self._allObjTypes     = self._getData('HutchesObjTypes', set, 1)
-		self._hutchAliases    = self._getData('hutchAliases')
-		self._objTypeNames    = self._getData('objTypeNames')
-		self._objTypeIDs      = self._getData('objTypeIDs')
+		self._allMetaData     = self._readLocalCSV('db/localMode.csv')
+		self._allHutches      = self._getSlice('hutch', outType = set)
+		self._allObjTypes     = self._getSlice('objType', outType = set)
+		self._globalMode      = self._getSlice('globalMode')
+		self._hutchAliases    = self._getSlice('hutch', 'hutchAliases')
+		self._objTypeNames    = self._getSlice('objTypeNames')
+		self._objTypeIDs      = self._getSlice('objTypeIDs')
+		self._objTypeKeys     = self._getSlice('objTypeKeys')
 		# When starting to port over the pmgr look at this again to see if this
 		# is the right thing to do and if its even possible.
-		self._savePreHooks    = self._getData('savePreHooks')
-		self._savePostHooks   = self._getData('savePostHooks')
-		self._applyPreHooks   = self._getData('applyPreHooks')
-		self._applyPostHooks  = self._getData('applyPostHooks')
-		self._verbosity       = self._getData('verbosity')
-		self._logLevel        = self._getData('logLevel')
-		self._loggingPath     = self._getData('loggingPath')
-		self._zenity          = self._getData('zenity')
+		self._savePreHooks    = self._getSlice('savePreHooks')
+		self._savePostHooks   = self._getSlice('savePostHooks')
+		self._applyPreHooks   = self._getSlice('applyPreHooks')
+		self._applyPostHooks  = self._getSlice('applyPostHooks')
+		# ----------------------------------------------------------------------
+		self._verbosity       = self._getSlice('verbosity')
+		self._logLevel        = self._getSlice('logLevel')
+		self._loggingPath     = self._getSlice('loggingPath')
+		self._zenity          = self._getSlice('zenity')
 		self._aliases         = self._getAliases()
-		self._validLogLevels  = {"DEBUG","INFO","WARNING","ERROR","CRITICAL"}
+		# self._validLogLevels  = {"DEBUG","INFO","WARNING","ERROR","CRITICAL"}
+
+		# self._hutches         = set()         #Set of hutches to be used
+		# self._objTypes        = set()         #Set of objTypes to be used
+		# self._mode            = "pmgr"        #Mode for local behavior
+		# self._allMetaData     = DataFrame()   #DF of all the metadata
+		# self._allHutches      = set()         #Set of all valid hutches
+		# self._allObjTypes     = set()         #Set of all valid objTypes
+		# self._globalMode      = "pmgr"        #DF of hutch, objType, mode 
+		# self._hutchAliases    = DataFrame()   #DF of hutch, aliases
+		# self._objTypeNames    = DataFrame()   #DF of hutch, objType, Names
+		# self._objTypeIDs      = DataFrame()   #DF of hutch, objType, IDs
+		# self._objTypeKeys     = DataFrame()   #DF of hutch, objType, keys
+		# self._savePreHooks    = DataFrame()   #DF of hutch, objType, sPrH
+		# self._savePostHooks   = DataFrame()   #DF of hutch, objType, sPoH
+		# self._applyPreHooks   = DataFrame()   #DF of hutch, objType, aPrH
+		# self._applyPostHooks  = DataFrame()   #DF of hutch, objType, aPoH
+		# self._verbosity       = DataFrame()   #DF of hutch, objType, verbosity
+		# self._logLevel        = DataFrame()   #DF of hutch, objType, logLevel
+		# self._loggingPath     = DataFrame()   #DF of hutch, objType, path
+		# self._zenity          = DataFrame()   #DF of hutch, objType, bool
 
 	def _readLocalCSV(self, csv):
 		"""
@@ -209,12 +235,12 @@ False".format(mode))
 		data.
 		"""
 		df = read_csv(csv)
-		df.HutchesObjTypes = df.HutchesObjTypes.apply(literal_eval)
 		df.hutchAliases    = df.hutchAliases.apply(literal_eval)
+		df.objTypeKeys     = df.objTypeKeys.apply(literal_eval)
 		df                 = df.replace(np.nan,'', regex=True)
 		return df
 	
-	def _getData(self, name, outType=dict, index=None, key='HutchesObjTypes'):
+	def _getSlice(self, *args, **kwargs):
 		"""
 		Looks at the allMetaData attr and grabs whichever column is inputted by
 		name.
@@ -223,22 +249,38 @@ False".format(mode))
 		is specified, a set of the column if outType is a set, and a list if it
 		is set to list.
 		"""
-		data = self._allMetaData
-		if outType is list:
-			if index is None:
-				return data[name].tolist()
+	    outType = kwargs.get('outType', None)
+	    data    = kwargs.get('data', self._allMetaData)
+		if outType is None:
+			if len(args) == 1:
+				cols = ["hutch", "objType"] + args
+				return data[cols]
 			else:
-				return data[name].tolist()[index]
+				return data[args]
 		elif outType is set:
-			if index is None:
-				return set(data[name].tolist())
+			if len(args) == 1:
+				return set(data[args].tolist())
 			else:
-				return set(zip(*data[name].tolist())[index])
-		elif outType is dict:
-			return Series(
-				data[name].values, index = data.HutchesObjTypes).to_dict()
+				raise ValueError("Can only take 1 column for type set.")
 		else:
-			raise TypeError("outType must be list, set or dict.")		
+			raise TypeError("Invalid outType entry: '{0}'.".format(outType))
+
+		# data = self._allMetaData
+		# if outType is list:
+		# 	if index is None:
+		# 		return data[name].tolist()
+		# 	else:
+		# 		return data[name].tolist()[index]
+		# elif outType is set:
+		# 	if index is None:
+		# 		return set(data[name].tolist())
+		# 	else:
+		# 		return set(zip(*data[name].tolist())[index])
+		# elif outType is dict:
+		# 	return Series(
+		# 		data[name].values, index = data.HutchesObjTypes).to_dict()
+		# else:
+		# 	raise TypeError("outType must be list, set or dict.")		
 
 	def _getAliases(self):
 		"""Returns a set of all the known aliases."""
@@ -368,11 +410,10 @@ False".format(mode))
 	def Revert(self):
 		raise NotImplementedError()
 
-	def Refresh(self, local = None):
+	def Refresh(self, mode = None):
 		"""Reinitializes the metadata using the pmgr or the csv."""
-		if local is not None and isinstance(local, bool):
-			self._localMode = local
-		self._getAttrs()
+		self._setMode(local)
+		self._setAttrs()
 		# try:
 		# 	self._getAttrsPmgr()
 		# except LocalModeEnabled:
@@ -443,13 +484,13 @@ False".format(mode))
 		self._setObjTypes(objTypes)
 
 	@property
-	def localMode(self):
-		"""Returns whether devconfig instance is in localMode."""
-		return self._localMode
+	def mode(self):
+		"""Returns the mode devconfig is currently running in."""
+		return self._mode
 	@localMode.setter
-	def localMode(self, mode):
-		"""Sets local mode to inputted mode (True/False)."""
-		self._setLocalMode(mode)
+	def mode(self, mode):
+		"""Sets local mode to inputted mode (pmgr/local)."""
+		self._setMode(mode)
 
 	# Parameter manager fields. 
 	@property
