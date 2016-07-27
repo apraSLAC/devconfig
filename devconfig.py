@@ -53,7 +53,7 @@ class devconfig(object):
 		self._logLevel        = DataFrame()   #DF of hutch, objType, logLevel
 		self._loggingPath     = DataFrame()   #DF of hutch, objType, path
 		self._zenity          = DataFrame()   #DF of hutch, objType, bool
-		self._objTypeFLDMaps  = {}            #Dict of objType:FldMapDF pairs
+		self._objTypeFldMaps  = {}            #Dict of objType:FldMapDF pairs
 		self._aliases         = set()         #Set of all known aliases
 		self._pmgr            = None          #Pmgr used for dcfg operations
 		self._logger          = None          #devconfig logger
@@ -277,7 +277,7 @@ list".format(invalidHutches)
 		"""Reads the fld_maps stored in the db folder."""
 		try:
 			for objType in self._allObjTypes:
-				self._objTypeFLDMaps[objType] = read_csv("db/"+objType+".csv",
+				self._objTypeFldMaps[objType] = read_csv("db/"+objType+".csv",
 				                                            index_col = 0)
 		except:
 			print "Failed to read fldMaps."
@@ -289,7 +289,7 @@ list".format(invalidHutches)
 
 	def _listFieldsWith(self, objType, property, val):
 		"""Return a list of fields which have their 'property' set to 'value'."""
-		fldDict = self._objTypeFLDMaps[objType]
+		fldDict = self._objTypeFldMaps[objType]
 		return fldDict[fldDict[property] == val].index.tolist()
 	
 	def _listObjFields(self, objType):
@@ -352,10 +352,9 @@ list".format(invalidHutches)
 		    # - if not, check the keys for an objtype and use fldDict if found
 		    # - - If not, probe for objtype. Ask to add objtype key
 		    # Print diffs
-		    self._checkPVs(PVs)
-
-		    liveFlds_1 = self._getLiveFldDict(PV[0])
-		    liveFlds_2 = self._getLiveFldDict(PV[1])
+		    self._inferFromPVs(PVs)
+		    liveFlds = [self._getLiveFldDict(pv obt) for pv, obj in 
+		                zip(PVs, objType)]
 		    
 
 	def _proccessKWArg(self, kwargs, kw, defaultVal = None, outType = list):
@@ -391,13 +390,23 @@ list".format(invalidHutches)
 
 		if not self._objTypes:
 			for pv, hutch in zip(PVs, self._hutches):
-				for objType in self._allObjTypes:
-					self.
+				if len(self._allObjTypes) == 1:
+					self._objTypes.append(self._allObjTypes[0])
+					# Yes I am a lazy sob
+				else:
+					# Fill this in at some point
+					pass
 
-	def _getLiveFldDict(self, PV):
+	def _getLiveFldDict(self, PV, objType):
 		"""Returns a dictionary of fields to values for the inputted PV."""
-		PVs = self._checkPVs(PVs)
-
+		fldDict  = {}
+		fieldMap = self._objTypeFldMaps[objType]
+		for fld in fldMap.index:
+			fldDict[fld] = Pv.get(PV + fldMap.loc[fld]['pv'])
+			if fldMap.loc[fld]['enum']
+				try:
+					fldDict[fld] = 
+		
 	def _checkPVs(self, PVs):
 		"""Checks..."""
 		
