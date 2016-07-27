@@ -1,8 +1,8 @@
-,hutch,objTypes,globalMode,hutchAliases,hutchAliases,objTypeNames,objTypeIDs,objTypeKeys,savePreHooks,savePostHooks,applyPreHooks,applyPostHooks,verbosity,logLevel,loggingPath,zenity
-0,amo,,pmgr,"('sxd', 'all')","('sxd', 'all')",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
-1,sxr,,pmgr,"('sxd', 'all')","('sxd', 'all')",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
-2,xpp,,pmgr,"('hxd', 'all')","('hxd', 'all')",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
-3,xcs,,pmgr,"('hxd', 'all')","('hxd', 'all')",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
-4,cxi,,pmgr,"('all',)","('all',)",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
-5,mfx,,pmgr,"('all',)","('all',)",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
-6,mec,,pmgr,"('all',)","('all',)",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+,hutch,objType,globalMode,hutchAliases,objTypeNames,objTypeIDs,objTypeKeys,savePreHooks,savePostHooks,applyPreHooks,applyPostHooks,verbosity,logLevel,loggingPath,zenity
+0,amo,ims_motor,pmgr,"('sxd', 'all')",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+1,sxr,ims_motor,pmgr,"('sxd', 'all')",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+2,xpp,ims_motor,pmgr,"('hxd', 'all')",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+3,xcs,ims_motor,pmgr,"('hxd', 'all')",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+4,cxi,ims_motor,pmgr,"('all',)",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+5,mfx,ims_motor,pmgr,"('all',)",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False
+6,mec,ims_motor,pmgr,"('all',)",motor,FLD_SN,"(':MMS:',)",savePrehooks.ims_motor,savePostHooks.ims_motor,applyPreHooks.ims_motor,applyPostHooks.ims_motor,INFO,DEBUG,,False

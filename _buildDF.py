@@ -48,8 +48,8 @@ dCfgData = {'hutch': ['amo', 'sxr', 'xpp', 'xcs', 'cxi', 'mfx', 'mec'],
             'loggingPath': ['', '', '', '', '', '', ''],
             'zenity': [False, False, False, False, False, False, False]
             }
-dCfgDF = pd.DataFrame(dCfgData, columns=['hutch', 'objTypes', 'globalMode', 
-                                         'hutchAliases', 'hutchAliases', 
+dCfgDF = pd.DataFrame(dCfgData, columns=['hutch', 'objType', 'globalMode', 
+                                         'hutchAliases', 
                                          'objTypeNames', 'objTypeIDs', 
                                          'objTypeKeys', 'savePreHooks', 
                                          'savePostHooks', 'applyPreHooks', 

@@ -34,8 +34,8 @@ class devconfig(object):
 	def __init__(self, **kwargs):
 		# All meta data should be fetched from the pmgr
 		# For now assume singular objType: ims_motor
-		self._hutches         = set()         #Set of hutches to be used
-		self._objTypes        = set()         #Set of objTypes to be used
+		self._hutches         = []            #List of lists of hutches to use
+		self._objTypes        = []            #List of lists of objtypes to use
 		self._mode            = "pmgr"        #Mode for local behavior
 		self._allMetaData     = DataFrame()   #DF of all the metadata
 		self._allHutches      = set()         #Set of all valid hutches
@@ -56,7 +56,7 @@ class devconfig(object):
 		self._objTypeFLDMaps  = {}            #Dict of objType:FldMapDF pairs
 		self._aliases         = set()         #Set of all known aliases
 		self._pmgr            = None          #Pmgr used for dcfg operations
-		self._logger          = None        #devconfig logger
+		self._logger          = None          #devconfig logger
 		# self._successfulInit  = False         #Attr to check if init was successful
 		self._setAttrs()
 		# try:
@@ -86,25 +86,50 @@ class devconfig(object):
 			
 	def _setHutches(self, inpHutches):
 		"""Sets _hutches checking _hutchAliases and _allHutches."""
-		hutches = {hutch.lower() for hutch in set(inpHutches)}
-		aliasesFound = {a for a in hutches if a in self._aliases}
-		for alias in aliasesFound:
-			hutches.remove(alias)
-			hutches = hutches.union(self._getHutchesFromAlias(alias))
-		validHutches = hutches.intersection(self._allHutches)
+		if not isiterable(inpHutches):
+			inpHutches = [[inpHutches]]
+		elif not isiterable(inpHutches[0]):
+			inpHutches = [inpHutches]
+		validHutches, invalidHutches = [], []
+		for hutches in inpHutches:
+		    valid, invalid = self._getValidHutches(hutches)
+		    validHutches.append(valid)
+		    invalidHutches.append(invalid)
 		if not validHutches:
 			raise InvalidHutchError(inpHutches)
+		elif invalidHutches:
+			print "Invalid hutch entries '{0}', not included in hutch \
+list".format(invalidHutches)
 		self._hutches = validHutches
-		
-	def _getHutchesFromAlias(self, alias):
-		"""Returns the hutches to substitute for the alias inputted."""
-		hutchToAliases = self._hutchAliases
-		hutches        = set()
-		for hutch in hutchToAliases:
-			if alias in hutchToAliases[hutch]:
-				hutches.add(hutch[0])
-		return hutches
-	
+
+	def _getValidHutches(self, inpHutches):
+		"""Returns a valid and invalid list of hutches given the inputted list.""" 
+		hutches      = set(hutch.lower() for hutch in set(inpHutches))
+		aliasesFound = set(a for a in hutches if a in self._aliases)
+		for alias in aliasesFound:
+			hutches.remove(alias)
+			hutches.add(self._getValWhereTrue(self._hutchAliases, 'hutch',
+			                                  'hutchAliases', alias))
+		validHutches = hutches.intersection(self._allHutches)
+		invalidHutches = hutches - self._allHutches
+		return list(validHutches), list(invalidHutches)
+
+	def _getValWhereTrue(self, DF, col1, col2, val):
+		"""Return the values of col1 where col2 == val."""
+		return DF.iloc[self._getIdxWhereTrue(DF, col2, val)][col1].tolist()
+
+	def _getIdxWhereTrue(self, DF, col, val):
+		"""Returns the row index where col == val."""
+		if isinstance(val, basestring):
+			boolSer = DF[col].str.contains(val)
+			return boolSer[boolSer == True].index.tolist()
+
+	def _getHutchObjTypeVal(self, DF, col, hutch, objType = None):
+		if objType is not None:
+		    return  DF[(DF.hutch==hutch) & (DF.objType==objType)][col].tolist()
+		else:
+		    return DF[DF.hutch==hutch][col].values.tolist()
+
 	def _setObjTypes(self, inpObjTypes):
 		"""Sets _objTypes checking _allObjTypes."""
 		objTypes = {objType.lower() for objType in set(inpObjTypes)}
@@ -115,7 +140,7 @@ class devconfig(object):
 
 	def _setMode(self, mode):
 		"""Sets mode. Takes pmgr or local."""
-		if mode.lower() = "pmgr" or mode.lower() == "local":
+		if mode.lower() == "pmgr" or mode.lower() == "local":
 		    self._mode = mode
 		elif mode is None:
 			pass
@@ -227,8 +252,8 @@ class devconfig(object):
 		is specified, a set of the column if outType is a set, and a list if it
 		is set to list.
 		"""
-	    outType = kwargs.get('outType', None)
-	    data    = kwargs.get('data', self._allMetaData)
+		outType = kwargs.get('outType', None)
+		data    = kwargs.get('data', self._allMetaData)
 		if outType is None:
 			if len(args) == 1:
 				cols = ["hutch", "objType"] + args
@@ -346,31 +371,28 @@ class devconfig(object):
 	def _inferFromPVs(self, PVs):
 		if not self._hutches:
 			for pv in PVs:
-				for hutch in self._allHutches:
-					if hutch in pv.lower():
-						self._hutches.add(hutch)
-			if not self._hutches:
-			    hutch = input("Could not infer hutch from PV, please enter \
-hutch: ")
-			    self._setHuches(hutch)
-		
-		# Start here
-		# The goal of the logic here is to infer the hutch and objtype from the
-		# pv if it isnt provided. Its turning out to be slightly more convoluted
-		# than I expected it to be.
+				hutches, _ = self._getValidHutches(pv[:3])
+				if hutch:
+				    self._hutches.append(hutches)
+				else:
+				    break
+			# Porbably need to turn this into its own method
+			if len(self._hutches) != len(PVs):
+			    self._hutches = []
+			    print "Could not infer hutch(es) from PV(s). Please enter hutch:"
+			    for pv in PVs:
+				    inpHutch = None
+				    while not inpHutch:
+					    inpHutch = input("{0} - ".format(pv))
+					    if inpHutch not in self._allHutches:
+						    print "Invalid hutch entry: '{0}'".format(inpHutch)
+						    inpHutch = None
+					self._hutches.append([inpHutch])
 
-		# Consider the situation where we want to compare an amo motor cfg with
-		# an sxr one. Current setup doesnt allow for that - all comparisons use
-		# the same hutch/objtype attrs. Need to come up with a better solution.
 		if not self._objTypes:
-			for pv in PVs:
+			for pv, hutch in zip(PVs, self._hutches):
 				for objType in self._allObjTypes:
 					self.
-					
-	def _getHutchObjTypeVal(self, DF, val, hutch, objType):
-		return DF[(DF.hutch == hutch) & (DF.objType == objType)]
-
-
 
 	def _getLiveFldDict(self, PV):
 		"""Returns a dictionary of fields to values for the inputted PV."""
@@ -654,6 +676,19 @@ def isiterable(obj):
 		return False
 	else:
 		return isinstance(obj, Iterable)
+
+def flatten(inpIter):
+	"""Recursively iterate through values in nested iterables."""
+	for val in inpIter:
+		if isiterable(val):
+			for inVal in flatten(val):
+				yield inVal
+		else:
+			yield val
+
+def isempty(seq):
+	"""Checks if an iterable (nested or not) is empty."""
+	return not any(1 for _ in flatten(seq))
 		
 #################################################################################
 #                             Stand Alone Routines                              #
