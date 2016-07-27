@@ -231,16 +231,21 @@ list".format(invalidHutches)
 		self._zenity          = self._getSlice('zenity')
 		self._aliases         = self._getAliases()
 
-	def _readLocalCSV(self, csv):
+	def _readLocalCSV(self, csv, repNan = '', idxCol = None):
 		"""
 		Reads in a dataframe from the inputted localMode file path. A convenience 
 		method to perform whatever preprocessing is necessary before using the 
 		data.
 		"""
-		df = read_csv(csv)
-		df.hutchAliases    = df.hutchAliases.apply(literal_eval)
-		df.objTypeKeys     = df.objTypeKeys.apply(literal_eval)
-		df                 = df.replace(np.nan,'', regex=True)
+		df = read_csv(csv, index_col = idxCol)
+		df                 = df.replace(np.nan,repNan, regex=True)
+		for column in df.columns:
+			if df[column].dtype == "O":
+				if ( any(df[column].str.contains(r'\[\]')) or 
+				     any(df[column].str.contains(r'\(\]'))):
+					df[column] = df.column.apply(literal_eval)
+		# df.hutchAliases    = df.hutchAliases.apply(literal_eval)
+		# df.objTypeKeys     = df.objTypeKeys.apply(literal_eval)
 		return df
 	
 	def _getSlice(self, *args, **kwargs):
@@ -277,8 +282,8 @@ list".format(invalidHutches)
 		"""Reads the fld_maps stored in the db folder."""
 		try:
 			for objType in self._allObjTypes:
-				self._objTypeFldMaps[objType] = read_csv("db/"+objType+".csv",
-				                                            index_col = 0)
+				self._objTypeFldMaps[objType] = self.__readLocalCSV(
+					"db/"+objType+".csv", repNan = [], idxCol = 0)
 		except:
 			print "Failed to read fldMaps."
 			# Do more than just print for final rel
@@ -405,7 +410,7 @@ list".format(invalidHutches)
 			fldDict[fld] = Pv.get(PV + fldMap.loc[fld]['pv'])
 			if fldMap.loc[fld]['enum']
 				try:
-					fldDict[fld] = 
+					fldDict[fld] = fldMap
 		
 	def _checkPVs(self, PVs):
 		"""Checks..."""
