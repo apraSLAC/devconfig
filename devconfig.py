@@ -122,7 +122,7 @@ list".format(invalidHutches)
 		# print self._getIdxWhereTrue(DF, col2, val)
 		# print col1, type(col1)
 		# print DF
-		print DF.loc[self._getIdxWhereTrue(DF, col2, val)][col1].tolist()
+		# print DF.loc[self._getIdxWhereTrue(DF, col2, val)][col1].tolist()
 		return DF.loc[self._getIdxWhereTrue(DF, col2, val)][col1].tolist()
 
 	def _getIdxWhereTrue(self, DF, col, val):
@@ -369,10 +369,28 @@ list".format(invalidHutches)
 		    fldMap   = self._objTypeFldMaps[self._objTypes[0]]
 		    liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
 		                zip(PVs, self._objTypes)]
-		    diffDf   = self._getDiffDf(liveFlds, fldMap)
-		    print diffDf.to_string(col_space = 10, index = False)
+		    diffDf   = self._getDiffDf(PVs, liveFlds, fldMap)
 		else:
 			raise NotImplementedError()
+
+
+		lenDiffCols = [diffDf['alias'].str.len().max() + 3,
+					   diffDf['tooltip'].str.len().max()]
+		for i in range(2, diffDf.shape[1]):
+			lenDiffCols.append(diffDf.iloc[:,i].str.len().max())
+		
+		headerStr =  '{:<{0}s}'.format('Param', lenDiffCols[0])
+		headerStr += '{:<{0}s}'.format('ToolTip', lenDiffCols[1])
+		for pv, lenCol in zip(PVs, islice(lenDiffCols, 2 , len(lenDiffCols))):
+			headerStr += '{:>{0}s}'.format(pv, lenCol)
+
+		print headerStr
+		print diffDf.to_string(col_space = 50, index = False, header = False,
+							   formatters={'alias':'{{:<{0}s}}'.format(
+								   diffDf['alias'].str.len().max()+3).format, 
+										   'tooltip':'{{:<{0}s}}'.format(
+								   diffDf['tooltip'].str.len().max()).format})
+
 
 	def _processKWArg(self, kwargs, kw, defaultVal = None, outType = list):
 		"""
@@ -417,8 +435,13 @@ list".format(invalidHutches)
 	def _getLiveFldDict(self, PV, objType):
 		"""Returns a dictionary of fields to values for the inputted PV."""
 		fldDict   = {}
-		fieldMap  = self._objTypeFldMaps[objType]
-		objTypeID = self._objTypeIDs.loc[objType][objTypeIDs]
+		fldMap    = self._objTypeFldMaps[objType]
+		objTypeID = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
+		                                  'objType', 'ims_motor')
+
+		# self._objTypeIDs.loc[objType][objTypeIDs]
+		# Start here
+		# Think about how to handle the two coloumn DFs
 		for fld in fldMap.index:
 			if fld == objTypeID:
 				continue
@@ -433,15 +456,15 @@ Parameter Manager!"
 					fldDict[fld] = fldMap.enum[fld][0]
 		return fldDict
 
-	def _getDiffDf(self, fldDicts, fldMap):
+	def _getDiffDf(self, PVs, fldDicts, fldMap):
 		"""
 		Returns a df with the alias, tooltip and values of the different fields.
 		"""
-		idxDiffs  = self._getDiffFlds(liveFlds)
+		idxDiffs  = self._getDiffFlds(fldDicts)
 		diffDicts = [{i:fldDict[i] for i in idxDiffs} for fldDict in fldDicts]
 		diffDf    = fldMap.loc[idxDiffs][['alias', 'tooltip']].reset_index()
-		for fldDict, diffDict in zip(fldDicts, diffDicts):
-			diffDf[fldDicts["FLD_DESC"]] = diffDf['index'].map(diffDict)
+		for pv, diffDict in zip(PVs, diffDicts):
+			diffDf[pv] = diffDf['index'].map(diffDict)
 		diffDf = diffDf.drop('index', 1)
 		return diffDf
 
@@ -453,7 +476,7 @@ Parameter Manager!"
 			for fldDict in islice(fldDicts, 1, len(fldDicts)):
 				if fldDict[fld] != val:
 					diffFlds.append(fld)
-		diffFlds = diffFlds.sort()
+		diffFlds.sort()
 		return diffFlds
 		
                     
