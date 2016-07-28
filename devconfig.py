@@ -105,7 +105,9 @@ list".format(invalidHutches)
 
 	def _getValidHutches(self, inpHutches):
 		"""Returns a valid and invalid list of hutches given the inputted list.""" 
-		hutches      = set(hutch.lower() for hutch in set(inpHutches))
+		if not isiterable(inpHutches):
+			inpHutches = set([inpHutches])
+		hutches      = set(hutch.lower() for hutch in inpHutches)
 		aliasesFound = set(a for a in hutches if a in self._aliases)
 		for alias in aliasesFound:
 			hutches.remove(alias)
@@ -117,7 +119,11 @@ list".format(invalidHutches)
 
 	def _getValWhereTrue(self, DF, col1, col2, val):
 		"""Return the values of col1 where col2 == val."""
-		return DF.iloc[self._getIdxWhereTrue(DF, col2, val)][col1].tolist()
+		# print self._getIdxWhereTrue(DF, col2, val)
+		# print col1, type(col1)
+		# print DF
+		print DF.loc[self._getIdxWhereTrue(DF, col2, val)][col1].tolist()
+		return DF.loc[self._getIdxWhereTrue(DF, col2, val)][col1].tolist()
 
 	def _getIdxWhereTrue(self, DF, col, val):
 		"""Returns the row index where col == val."""
@@ -244,7 +250,11 @@ list".format(invalidHutches)
 			if df[column].dtype == "O":
 				if ( any(df[column].str.contains(r'\[\]')) or 
 				     any(df[column].str.contains(r'\(\)'))):
-					df[column] = df.column.apply(literal_eval)
+					try:
+						df[column] = df[column].apply(literal_eval)
+					except ValueError:
+						# Figure this out
+						pass
 		return df
 	
 	def _getSlice(self, *args, **kwargs):
@@ -258,17 +268,18 @@ list".format(invalidHutches)
 		"""
 		outType = kwargs.get('outType', None)
 		data    = kwargs.get('data', self._allMetaData)
+		args = list(args)
 		if outType is None:
 			if len(args) == 1:
 				cols = ["hutch", "objType"] + args
 				return data[cols].drop_duplicates()
 			elif len(args) == 2:
-				return data[args].drop_duplicates().set_index(args[0])				
+				return data[args].drop_duplicates()			
 			else:
 				return data[args].drop_duplicates()
 		elif outType is set:
 			if len(args) == 1:
-				return set(data[args].tolist())
+				return set(flatten(data[args].values.T.tolist()))
 			else:
 				raise ValueError("Can only take 1 column for type set.")
 		else:
@@ -281,12 +292,13 @@ list".format(invalidHutches)
 
 	def _getObjTypeFLDMaps(self):
 		"""Reads the fld_maps stored in the db folder."""
-		try:
-			for objType in self._allObjTypes:
-				self._objTypeFldMaps[objType] = self.__readLocalCSV(
-					"db/"+objType+".csv", repNan = [], idxCol = 0)
-		except:
-			print "Failed to read fldMaps."
+		# try:
+		for objType in self._allObjTypes:
+			self._objTypeFldMaps[objType] = self._readLocalCSV(
+				"db/"+objType+".csv", repNan = "[]", idxCol = 0)
+		# except :
+		# 	print "Failed to read fldMaps."
+		# 	print 
 			# Do more than just print for final rel
 
 	def _initLogger(self):
@@ -354,7 +366,7 @@ list".format(invalidHutches)
 		# Comparing 2 inputted pvs for diffs
 		if len(PVs) == 2:
 		    self._inferFromPVs(PVs)
-		    fldMap   = self._objTypeFldMaps[objType[0]]
+		    fldMap   = self._objTypeFldMaps[self._objTypes[0]]
 		    liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
 		                zip(PVs, self._objTypes)]
 		    diffDf   = self._getDiffDf(liveFlds, fldMap)
@@ -362,12 +374,12 @@ list".format(invalidHutches)
 		else:
 			raise NotImplementedError()
 
-	def _proccessKWArg(self, kwargs, kw, defaultVal = None, outType = list):
+	def _processKWArg(self, kwargs, kw, defaultVal = None, outType = list):
 		"""
 		Processes a key word argument and performs any preprocessing necessary.
 		"""
 		arg = kwargs.get(kw, defaultVal)
-		if isiterable(arg):
+		if isiterable(arg) or arg is None:
 			return arg
 		else:
 			return outType(arg)
@@ -376,28 +388,28 @@ list".format(invalidHutches)
 		if not self._hutches:
 			for pv in PVs:
 				hutches, _ = self._getValidHutches(pv[:3])
-				if hutch:
-				    self._hutches.append(hutches)
+				if hutches:
+					self._hutches.append(hutches)
 				else:
-				    break
+					break
 			# Porbably need to turn this into its own method
 			if len(self._hutches) != len(PVs):
-			    self._hutches = []
-			    print "Could not infer hutch(es) from PV(s). Please enter hutch:"
-			    for pv in PVs:
-				    inpHutch = None
-				    while not inpHutch:
-					    inpHutch = input("{0} - ".format(pv))
-					    if inpHutch not in self._allHutches:
-						    print "Invalid hutch entry: '{0}'".format(inpHutch)
-						    inpHutch = None
+				self._hutches = []
+				print "Could not infer hutch(es) from PV(s). Please enter hutch:"
+				for pv in PVs:
+					inpHutch = None
+					while not inpHutch:
+						inpHutch = input("{0} - ".format(pv))
+						if inpHutch not in self._allHutches:
+							print "Invalid hutch entry: '{0}'".format(inpHutch)
+							inpHutch = None
 					self._hutches.append([inpHutch])
 
 		if not self._objTypes:
 			for pv, hutch in zip(PVs, self._hutches):
 				# Yes I am a lazy sob
 				if len(self._allObjTypes) == 1:
-					self._objTypes.append(self._allObjTypes[0])
+					self._objTypes.append(list(self._allObjTypes)[0])
 				else:
 					# Fill this in at some point
 					raise NotImplementedError()
@@ -416,7 +428,7 @@ list".format(invalidHutches)
 					fldDict[fld] = fldMap.enum[fld][fldDict[fld]]
 				except IndexError:
 					print "WARNING: index mismatch in field {0}.".format(fld) 
-                    print "An ioc has been updated without updating the \
+					print "An ioc has been updated without updating the \
 Parameter Manager!"
 					fldDict[fld] = fldMap.enum[fld][0]
 		return fldDict
@@ -743,3 +755,4 @@ def isempty(seq):
 
 if __name__ == "__main__":
 	dCfg = devconfig()
+	dCfg.Diff(pv=['AMO:PPL:MMS:01', 'AMO:PPL:MMS:02'])
