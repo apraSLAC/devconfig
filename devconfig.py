@@ -360,7 +360,7 @@ list".format(invalidHutches)
 		"""
 		self._setInstanceAttrs(kwargs)
 		
-		PVs = self._processKWArg(kwargs, "pv", None) 
+		PVs = self._processKWArg(kwargs, "pv", None)
 		SNs = self._processKWArg(kwargs, "sn", None)
 		# Check the PVs and SNs
 		# Comparing 2 inputted pvs for diffs
@@ -372,24 +372,23 @@ list".format(invalidHutches)
 		    diffDf   = self._getDiffDf(PVs, liveFlds, fldMap)
 		else:
 			raise NotImplementedError()
-
-
-		lenDiffCols = [diffDf['alias'].str.len().max() + 3,
+		
+		print "Number of Diffs: {0}\n".format(diffDf.shape[0])
+		offSet = 3
+		lenDiffCols = [diffDf['alias'].str.len().max() + offSet,
 					   diffDf['tooltip'].str.len().max()]
 		for i in range(2, diffDf.shape[1]):
-			lenDiffCols.append(diffDf.iloc[:,i].str.len().max())
-		
-		headerStr =  '{:<{0}s}'.format('Param', lenDiffCols[0])
-		headerStr += '{:<{0}s}'.format('ToolTip', lenDiffCols[1])
-		for pv, lenCol in zip(PVs, islice(lenDiffCols, 2 , len(lenDiffCols))):
-			headerStr += '{:>{0}s}'.format(pv, lenCol)
-
+			lenDiffCols.append(int(diffDf.iloc[:,i].str.len().max() + 2))
+		headerStr =  ' {:<{}s}'.format('Param', lenDiffCols[0] + 2)
+		headerStr += '{:<{}s}'.format('ToolTip', lenDiffCols[1])
+		for i, pv in enumerate(PVs):
+			headerStr += '{:>{}s}'.format(pv, lenDiffCols[i+2])
 		print headerStr
-		print diffDf.to_string(col_space = 50, index = False, header = False,
-							   formatters={'alias':'{{:<{0}s}}'.format(
-								   diffDf['alias'].str.len().max()+3).format, 
-										   'tooltip':'{{:<{0}s}}'.format(
-								   diffDf['tooltip'].str.len().max()).format})
+		print "-" * (np.sum(lenDiffCols) + offSet + 1)
+		print diffDf.to_string(
+			col_space = 50, index = False, header = False,
+			formatters={'alias':'{{:<{}s}}'.format(lenDiffCols[0]).format, 
+			            'tooltip':'{{:<{}s}}'.format(lenDiffCols[1]).format})
 
 
 	def _processKWArg(self, kwargs, kw, defaultVal = None, outType = list):
