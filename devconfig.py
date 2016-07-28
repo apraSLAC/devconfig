@@ -43,7 +43,7 @@ class devconfig(object):
 		self._allObjTypes     = set()         #Set of all valid objTypes
 		self._globalMode      = "pmgr"        #Default mode set 
 		self._hutchAliases    = DataFrame()   #DF of hutch, aliases
-		self._objTypeNames    = DataFrame()   #DF of hutch, objType, Names
+		self._objTypeNames    = DataFrame()   #DF of objType, Names
 		self._objTypeIDs      = DataFrame()   #DF of objType, IDs
 		self._objTypeKeys     = DataFrame()   #DF of hutch, objType, keys
 		self._savePreHooks    = DataFrame()   #DF of hutch, objType, sPrH
@@ -60,10 +60,6 @@ class devconfig(object):
 		self._logger          = None          #devconfig logger
 		# self._successfulInit  = False         #Attr to check if init was successful
 		self._setAttrs()
-		# try:
-		# 	self._getAttrsPmgr()          #Looks up devconfig data in the pmgr
-		# except LocalModeEnabled:
-		# 	self._getAttrsLocal()
 		self._initLogger()                #Setup the logger
 		self._setInstanceAttrs(kwargs)    #Fills in instance attrs using inputs
 		# self._setPmgr
@@ -119,11 +115,11 @@ list".format(invalidHutches)
 
 	def _getValWhereTrue(self, DF, col1, col2, val):
 		"""Return the values of col1 where col2 == val."""
-		# print self._getIdxWhereTrue(DF, col2, val)
-		# print col1, type(col1)
-		# print DF
-		# print DF.loc[self._getIdxWhereTrue(DF, col2, val)][col1].tolist()
-		return DF.loc[self._getIdxWhereTrue(DF, col2, val)][col1].tolist()
+		val = DF.loc[self._getIdxWhereTrue(DF, col2, val)][col1]
+		if len(val.tolist()) > 1:
+			return val.tolist()
+		else:
+			return ''.join(str(v) for v in val)
 
 	def _getIdxWhereTrue(self, DF, col, val):
 		"""Returns the row index where col == val."""
@@ -200,7 +196,7 @@ list".format(invalidHutches)
 		one pmgrObj can be used at a time, entries for objType and hutch must be
 		a single objType and hutch, not multiple.
 		"""
-		if not isinstance(objType, str) or not isinstance(hutch, str):
+		if not isinstance(objType,basestring) or not isinstance(hutch,basestring):
 			raise typeError('str')
 		if objType.lower() not in self._allObjTypes:
 			raise InvalidObjTypeError(objType)
@@ -222,7 +218,7 @@ list".format(invalidHutches)
 		self._allObjTypes     = self._getSlice('objType', outType = set)
 		self._globalMode      = self._getSlice('globalMode')
 		self._hutchAliases    = self._getSlice('hutch', 'hutchAliases')
-		self._objTypeNames    = self._getSlice('objTypeNames')
+		self._objTypeNames    = self._getSlice('objType', 'objTypeNames')
 		self._objTypeIDs      = self._getSlice('objType', 'objTypeIDs')
 		self._objTypeKeys     = self._getSlice('objTypeKeys')
 		# When starting to port over the pmgr look at this again to see if this
@@ -292,12 +288,12 @@ list".format(invalidHutches)
 
 	def _getObjTypeFLDMaps(self):
 		"""Reads the fld_maps stored in the db folder."""
-		# try:
-		for objType in self._allObjTypes:
-			self._objTypeFldMaps[objType] = self._readLocalCSV(
-				"db/"+objType+".csv", repNan = "[]", idxCol = 0)
-		# except :
-		# 	print "Failed to read fldMaps."
+		try:
+			for objType in self._allObjTypes:
+				self._objTypeFldMaps[objType] = self._readLocalCSV(
+					"db/"+objType+".csv", repNan = "[]", idxCol = 0)
+		except :
+			print "Failed to read fldMaps."
 		# 	print 
 			# Do more than just print for final rel
 
@@ -360,19 +356,33 @@ list".format(invalidHutches)
 		"""
 		self._setInstanceAttrs(kwargs)
 		
-		PVs = self._processKWArg(kwargs, "pv", None)
-		SNs = self._processKWArg(kwargs, "sn", None)
-		# Check the PVs and SNs
-		# Comparing 2 inputted pvs for diffs
-		if len(PVs) == 2:
-		    self._inferFromPVs(PVs)
-		    fldMap   = self._objTypeFldMaps[self._objTypes[0]]
-		    liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
-		                zip(PVs, self._objTypes)]
-		    diffDf   = self._getDiffDf(PVs, liveFlds, fldMap)
+		PVs = self._processKWArg(kwargs, "pv", [])
+		SNs = self._processKWArg(kwargs, "sn", [])
+		numPVs, numSNs = len(PVs), len(SNs)
+		numInputs = numPVs + numSNs
+
+
+		if numPVs == 2 and numInputs == 2:
+			self._inferFromPVs(PVs)
+			fldMap   = self._objTypeFldMaps[self._objTypes[0]]
+			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
+						zip(PVs, self._objTypes)]
+			diffDf   = self._getDiffDf(PVs, liveFlds, fldMap)
+
+
+		elif numPVs == 1 and numInputs == 1:
+			self._inferFromPVs(PVs)
+			fldMap   = self._objTypeFldMaps[self._objTypes[0]]
+			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
+						zip(PVs, self._objTypes)]
+			pmgrFlds = [self._getPmgrFldDict(pv, objType, hutch) for pv, objType,
+						hutch in zip(PVs, self._objTypes, self._hutches[0])]
+			diffDf   = self._getDiffDf(PVs, liveFlds + pmgrFlds, fldMap)
+
 		else:
 			raise NotImplementedError()
-		
+		# Actually do the printing. This is probably something that should be 
+		# in a method.
 		print "Number of Diffs: {0}\n".format(diffDf.shape[0])
 		offSet = 3
 		lenDiffCols = [diffDf['alias'].str.len().max() + offSet,
@@ -383,12 +393,14 @@ list".format(invalidHutches)
 		headerStr += '{:<{}s}'.format('ToolTip', lenDiffCols[1])
 		for i, pv in enumerate(PVs):
 			headerStr += '{:>{}s}'.format(pv, lenDiffCols[i+2])
+
+
 		print headerStr
 		print "-" * (np.sum(lenDiffCols) + offSet + 1)
 		print diffDf.to_string(
 			col_space = 50, index = False, header = False,
 			formatters={'alias':'{{:<{}s}}'.format(lenDiffCols[0]).format, 
-			            'tooltip':'{{:<{}s}}'.format(lenDiffCols[1]).format})
+						'tooltip':'{{:<{}s}}'.format(lenDiffCols[1]).format})
 
 
 	def _processKWArg(self, kwargs, kw, defaultVal = None, outType = list):
@@ -436,14 +448,8 @@ list".format(invalidHutches)
 		fldDict   = {}
 		fldMap    = self._objTypeFldMaps[objType]
 		objTypeID = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
-		                                  'objType', 'ims_motor')
-
-		# self._objTypeIDs.loc[objType][objTypeIDs]
-		# Start here
-		# Think about how to handle the two coloumn DFs
+		                                  'objType', objType)
 		for fld in fldMap.index:
-			if fld == objTypeID:
-				continue
 			fldDict[fld] = Pv.get(PV + fldMap.loc[fld]['pv'])
 			if fldMap.enum[fld]:
 				try:
@@ -462,6 +468,12 @@ Parameter Manager!"
 		idxDiffs  = self._getDiffFlds(fldDicts)
 		diffDicts = [{i:fldDict[i] for i in idxDiffs} for fldDict in fldDicts]
 		diffDf    = fldMap.loc[idxDiffs][['alias', 'tooltip']].reset_index()
+		nPVs, nDiffDicts = len(PVs), len(diffDicts)
+		if nPVs != nDiffDicts:
+			for pv in PVs:
+				PVs.append("Pmgr")
+				if len(PVs) == nDiffDicts:
+					break
 		for pv, diffDict in zip(PVs, diffDicts):
 			diffDf[pv] = diffDf['index'].map(diffDict)
 		diffDf = diffDf.drop('index', 1)
@@ -477,6 +489,46 @@ Parameter Manager!"
 					diffFlds.append(fld)
 		diffFlds.sort()
 		return diffFlds
+		
+	def _getPmgrFldDict(self, pv, objType, hutch):
+		"""
+		Returns a dictionary of values for the pmgr entry of the inputted device 
+		pv.
+		"""
+		try:
+			self._pmgr = self._getPmgr(objType, hutch)
+		except pmgrInitError:
+			print "Could not connect to pmgr using objType '{0}', hutch \
+'{1}'".format(objType, hutch)
+
+		fldMap = self._objTypeFldMaps[objType]
+		fldID  = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
+		                               'objType', objType)
+		pvExt  = fldMap.pv[fldID]
+		print pv, pvExt
+		devID  = str(Pv.get(pv + pvExt))
+		objID  = self._getPmgrObjFromDevID(devID, fldID)
+		return self._getObjFldDict(objID, objType)
+
+	def _getPmgrObjFromDevID(self, devID, fldID):
+		"""Returns the id of the object whose fldID matches the devID."""
+		for objID in self._pmgr.objs.keys():
+		    if devID == self._pmgr.objs[objID][fldID]:
+			    return objID
+		raise pmgrKeyError(devID)
+
+	def _getObjFldDict(self, objID, objType):
+		"""Returns the field dictionary of the object given the object ID."""
+		pmgrObj = self._pmgr.objs[objID]
+		pmgrCfg = self._pmgr.cfgs[pmgrObj['config']]
+		fldDict = {}
+		fldMap  = self._objTypeFldMaps[objType]
+		for fld in fldMap.index:
+			try:
+				fldDict[fld] = pmgrCfg[fld]
+			except KeyError:
+				fldDict[fld] = pmgrObj[fld]
+		return fldDict
 		
                     
 	def Import(self):
@@ -777,4 +829,4 @@ def isempty(seq):
 
 if __name__ == "__main__":
 	dCfg = devconfig()
-	dCfg.Diff(pv=['AMO:PPL:MMS:01', 'AMO:PPL:MMS:02'])
+	dCfg.Diff(pv=['AMO:PPL:MMS:01'])
