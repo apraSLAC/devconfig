@@ -14,6 +14,7 @@ from ConfigParser import SafeConfigParser
 from ast import literal_eval
 from collections import Iterable
 from psp import Pv
+from itertools import islice
 
 class devconfig(object):
 	"""
@@ -41,9 +42,9 @@ class devconfig(object):
 		self._allHutches      = set()         #Set of all valid hutches
 		self._allObjTypes     = set()         #Set of all valid objTypes
 		self._globalMode      = "pmgr"        #Default mode set 
-		self._hutchAliases    = DataFrame()   #DF of hutch:aliases
+		self._hutchAliases    = DataFrame()   #DF of hutch, aliases
 		self._objTypeNames    = DataFrame()   #DF of hutch, objType, Names
-		self._objTypeIDs      = DataFrame()   #DF of hutch, objType, IDs
+		self._objTypeIDs      = DataFrame()   #DF of objType, IDs
 		self._objTypeKeys     = DataFrame()   #DF of hutch, objType, keys
 		self._savePreHooks    = DataFrame()   #DF of hutch, objType, sPrH
 		self._savePostHooks   = DataFrame()   #DF of hutch, objType, sPoH
@@ -216,7 +217,7 @@ list".format(invalidHutches)
 		self._globalMode      = self._getSlice('globalMode')
 		self._hutchAliases    = self._getSlice('hutch', 'hutchAliases')
 		self._objTypeNames    = self._getSlice('objTypeNames')
-		self._objTypeIDs      = self._getSlice('objTypeIDs')
+		self._objTypeIDs      = self._getSlice('objType', 'objTypeIDs')
 		self._objTypeKeys     = self._getSlice('objTypeKeys')
 		# When starting to port over the pmgr look at this again to see if this
 		# is the right thing to do and if its even possible.
@@ -238,14 +239,12 @@ list".format(invalidHutches)
 		data.
 		"""
 		df = read_csv(csv, index_col = idxCol)
-		df                 = df.replace(np.nan,repNan, regex=True)
+		df = df.fillna(repNan)
 		for column in df.columns:
 			if df[column].dtype == "O":
 				if ( any(df[column].str.contains(r'\[\]')) or 
-				     any(df[column].str.contains(r'\(\]'))):
+				     any(df[column].str.contains(r'\(\)'))):
 					df[column] = df.column.apply(literal_eval)
-		# df.hutchAliases    = df.hutchAliases.apply(literal_eval)
-		# df.objTypeKeys     = df.objTypeKeys.apply(literal_eval)
 		return df
 	
 	def _getSlice(self, *args, **kwargs):
@@ -262,9 +261,11 @@ list".format(invalidHutches)
 		if outType is None:
 			if len(args) == 1:
 				cols = ["hutch", "objType"] + args
-				return data[cols]
+				return data[cols].drop_duplicates()
+			elif len(args) == 2:
+				return data[args].drop_duplicates().set_index(args[0])				
 			else:
-				return data[args]
+				return data[args].drop_duplicates()
 		elif outType is set:
 			if len(args) == 1:
 				return set(data[args].tolist())
@@ -349,18 +350,17 @@ list".format(invalidHutches)
 		
 		PVs = self._processKWArg(kwargs, "pv", None) 
 		SNs = self._processKWArg(kwargs, "sn", None)
-
 		# Check the PVs and SNs
 		# Comparing 2 inputted pvs for diffs
 		if len(PVs) == 2:
-		    # Check if objtype is set
-		    # - if not, check the keys for an objtype and use fldDict if found
-		    # - - If not, probe for objtype. Ask to add objtype key
-		    # Print diffs
 		    self._inferFromPVs(PVs)
-		    liveFlds = [self._getLiveFldDict(pv obt) for pv, obj in 
-		                zip(PVs, objType)]
-		    
+		    fldMap   = self._objTypeFldMaps[objType[0]]
+		    liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
+		                zip(PVs, self._objTypes)]
+		    diffDf   = self._getDiffDf(liveFlds, fldMap)
+		    print diffDf.to_string(col_space = 10, index = False)
+		else:
+			raise NotImplementedError()
 
 	def _proccessKWArg(self, kwargs, kw, defaultVal = None, outType = list):
 		"""
@@ -395,27 +395,56 @@ list".format(invalidHutches)
 
 		if not self._objTypes:
 			for pv, hutch in zip(PVs, self._hutches):
+				# Yes I am a lazy sob
 				if len(self._allObjTypes) == 1:
 					self._objTypes.append(self._allObjTypes[0])
-					# Yes I am a lazy sob
 				else:
 					# Fill this in at some point
-					pass
+					raise NotImplementedError()
 
 	def _getLiveFldDict(self, PV, objType):
 		"""Returns a dictionary of fields to values for the inputted PV."""
-		fldDict  = {}
-		fieldMap = self._objTypeFldMaps[objType]
+		fldDict   = {}
+		fieldMap  = self._objTypeFldMaps[objType]
+		objTypeID = self._objTypeIDs.loc[objType][objTypeIDs]
 		for fld in fldMap.index:
+			if fld == objTypeID:
+				continue
 			fldDict[fld] = Pv.get(PV + fldMap.loc[fld]['pv'])
-			if fldMap.loc[fld]['enum']
+			if fldMap.enum[fld]:
 				try:
-					fldDict[fld] = fldMap
-		
-	def _checkPVs(self, PVs):
-		"""Checks..."""
-		
+					fldDict[fld] = fldMap.enum[fld][fldDict[fld]]
+				except IndexError:
+					print "WARNING: index mismatch in field {0}.".format(fld) 
+                    print "An ioc has been updated without updating the \
+Parameter Manager!"
+					fldDict[fld] = fldMap.enum[fld][0]
+		return fldDict
 
+	def _getDiffDf(self, fldDicts, fldMap):
+		"""
+		Returns a df with the alias, tooltip and values of the different fields.
+		"""
+		idxDiffs  = self._getDiffFlds(liveFlds)
+		diffDicts = [{i:fldDict[i] for i in idxDiffs} for fldDict in fldDicts]
+		diffDf    = fldMap.loc[idxDiffs][['alias', 'tooltip']].reset_index()
+		for fldDict, diffDict in zip(fldDicts, diffDicts):
+			diffDf[fldDicts["FLD_DESC"]] = diffDf['index'].map(diffDict)
+		diffDf = diffDf.drop('index', 1)
+		return diffDf
+
+	def _getDiffFlds(self, fldDicts):
+		"""Returns the names of the fields that are different."""
+		diffFlds = []
+		for fld in fldDicts[0].keys():
+			val = fldDicts[0][fld]
+			for fldDict in islice(fldDicts, 1, len(fldDicts)):
+				if fldDict[fld] != val:
+					diffFlds.append(fld)
+		diffFlds = diffFlds.sort()
+		return diffFlds
+		
+                    
 	def Import(self):
 		raise NotImplementedError()
 
