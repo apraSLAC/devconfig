@@ -366,7 +366,6 @@ list".format(invalidHutches)
 						zip(PVs, self._objTypes)]
 			diffDf   = self._getDiffDf(PVs, liveFlds, fldMap)
 
-
 		elif numPVs == 1 and numInputs == 1:
 			self._inferFromPVs(PVs)
 			fldMap   = self._objTypeFldMaps[self._objTypes[0]]
@@ -378,6 +377,7 @@ list".format(invalidHutches)
 
 		else:
 			raise NotImplementedError()
+
 		# Actually do the printing. This is probably something that should be 
 		# in a method.
 		print "\nNumber of Diffs: {0}".format(diffDf.shape[0])
@@ -391,14 +391,12 @@ list".format(invalidHutches)
 				lenDiffCols.append(int(maxLenCol + 2))
 			else:
 				lenDiffCols.append(int(minColLen + 1))
-		headerStr =  ' {:<{}s}'.format('Param', lenDiffCols[0] + 2)
+		headerStr =  '\n {:<{}s}'.format('Param', lenDiffCols[0] + 2)
 		headerStr += '{:<{}s}'.format('ToolTip', lenDiffCols[1])
 		for i, pv in enumerate(PVs):
 			headerStr += '{:>{}s}'.format(pv, lenDiffCols[i+2])
 		lenRow = np.sum(lenDiffCols) + offSet + 1
-		print "-" * lenRow
-		print headerStr
-		print "-" * lenRow
+		print "-" * lenRow, headerStr, "\n", "-" * lenRow
 		diffDfStr = diffDf.to_string(index = False,
 			formatters={'alias':'{{:<{}s}}'.format(lenDiffCols[0]).format, 
 						'tooltip':'{{:<{}s}}'.format(lenDiffCols[1]).format})
