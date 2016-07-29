@@ -344,7 +344,6 @@ list".format(invalidHutches)
 	def Edit(self):
 		raise NotImplementedError()
 
-
 	#############################################################################
 	#                                   Diff                                    #
 	#############################################################################
@@ -360,8 +359,6 @@ list".format(invalidHutches)
 		SNs = self._processKWArg(kwargs, "sn", [])
 		numPVs, numSNs = len(PVs), len(SNs)
 		numInputs = numPVs + numSNs
-
-
 		if numPVs == 2 and numInputs == 2:
 			self._inferFromPVs(PVs)
 			fldMap   = self._objTypeFldMaps[self._objTypes[0]]
@@ -383,25 +380,30 @@ list".format(invalidHutches)
 			raise NotImplementedError()
 		# Actually do the printing. This is probably something that should be 
 		# in a method.
-		print "Number of Diffs: {0}\n".format(diffDf.shape[0])
+		print "\nNumber of Diffs: {0}".format(diffDf.shape[0])
 		offSet = 3
+		minColLen = 20
 		lenDiffCols = [diffDf['alias'].str.len().max() + offSet,
 					   diffDf['tooltip'].str.len().max()]
 		for i in range(2, diffDf.shape[1]):
-			lenDiffCols.append(int(diffDf.iloc[:,i].str.len().max() + 2))
+			maxLenCol = diffDf.iloc[:,i].astype(basestring).str.len().max()
+			if maxLenCol > minColLen:
+				lenDiffCols.append(int(maxLenCol + 2))
+			else:
+				lenDiffCols.append(int(minColLen + 1))
 		headerStr =  ' {:<{}s}'.format('Param', lenDiffCols[0] + 2)
 		headerStr += '{:<{}s}'.format('ToolTip', lenDiffCols[1])
 		for i, pv in enumerate(PVs):
 			headerStr += '{:>{}s}'.format(pv, lenDiffCols[i+2])
-
-
+		lenRow = np.sum(lenDiffCols) + offSet + 1
+		print "-" * lenRow
 		print headerStr
-		print "-" * (np.sum(lenDiffCols) + offSet + 1)
-		print diffDf.to_string(
-			col_space = 50, index = False, header = False,
+		print "-" * lenRow
+		diffDfStr = diffDf.to_string(index = False,
 			formatters={'alias':'{{:<{}s}}'.format(lenDiffCols[0]).format, 
 						'tooltip':'{{:<{}s}}'.format(lenDiffCols[1]).format})
-
+		print diffDfStr[lenRow:]
+		print "-" * lenRow, "\n"
 
 	def _processKWArg(self, kwargs, kw, defaultVal = None, outType = list):
 		"""
@@ -450,10 +452,10 @@ list".format(invalidHutches)
 		objTypeID = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
 		                                  'objType', objType)
 		for fld in fldMap.index:
-			fldDict[fld] = Pv.get(PV + fldMap.loc[fld]['pv'])
+			fldDict[fld] = str(Pv.get(PV + fldMap.loc[fld]['pv']))
 			if fldMap.enum[fld]:
 				try:
-					fldDict[fld] = fldMap.enum[fld][fldDict[fld]]
+					fldDict[fld] = fldMap.enum[fld][int(fldDict[fld])]
 				except IndexError:
 					print "WARNING: index mismatch in field {0}.".format(fld) 
 					print "An ioc has been updated without updating the \
@@ -461,7 +463,7 @@ Parameter Manager!"
 					fldDict[fld] = fldMap.enum[fld][0]
 		return fldDict
 
-	def _getDiffDf(self, PVs, fldDicts, fldMap):
+	def _getDiffDf(self, PVs, fldDicts, fldMap, minValColLen = 20):
 		"""
 		Returns a df with the alias, tooltip and values of the different fields.
 		"""
@@ -474,6 +476,7 @@ Parameter Manager!"
 				PVs.append("Pmgr")
 				if len(PVs) == nDiffDicts:
 					break
+		PVs = [pv.rjust(minValColLen) for pv in PVs]
 		for pv, diffDict in zip(PVs, diffDicts):
 			diffDf[pv] = diffDf['index'].map(diffDict)
 		diffDf = diffDf.drop('index', 1)
@@ -500,12 +503,10 @@ Parameter Manager!"
 		except pmgrInitError:
 			print "Could not connect to pmgr using objType '{0}', hutch \
 '{1}'".format(objType, hutch)
-
 		fldMap = self._objTypeFldMaps[objType]
 		fldID  = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
 		                               'objType', objType)
 		pvExt  = fldMap.pv[fldID]
-		print pv, pvExt
 		devID  = str(Pv.get(pv + pvExt))
 		objID  = self._getPmgrObjFromDevID(devID, fldID)
 		return self._getObjFldDict(objID, objType)
@@ -525,9 +526,9 @@ Parameter Manager!"
 		fldMap  = self._objTypeFldMaps[objType]
 		for fld in fldMap.index:
 			try:
-				fldDict[fld] = pmgrCfg[fld]
+				fldDict[fld] = str(pmgrCfg[fld])
 			except KeyError:
-				fldDict[fld] = pmgrObj[fld]
+				fldDict[fld] = str(pmgrObj[fld])
 		return fldDict
 		
                     
@@ -547,14 +548,6 @@ Parameter Manager!"
 		"""Reinitializes the metadata using the pmgr or the csv."""
 		self._setMode(local)
 		self._setAttrs()
-		# try:
-		# 	self._getAttrsPmgr()
-		# except LocalModeEnabled:
-		# 	self._getAttrsLocal()
-
-
-
-
 
 	#############################################################################
 	#                              Property Methods                             #
@@ -829,4 +822,4 @@ def isempty(seq):
 
 if __name__ == "__main__":
 	dCfg = devconfig()
-	dCfg.Diff(pv=['AMO:PPL:MMS:01'])
+	dCfg.Diff(pv=['AMO:PPL:MMS:15', 'AMO:PPL:MMS:01'])
