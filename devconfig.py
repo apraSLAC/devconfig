@@ -2,19 +2,21 @@
 
 import logging
 import numpy as np
-
+# from sys import exit
+# from difflib import get_close_matches
+from os import path, getcwd
 from pandas import DataFrame, Series, read_csv
 from exceptionClasses import *
 from pmgr.pmgrobj import pmgrobj
-from difflib import get_close_matches
 from optparse import OptionParser
-from sys import exit
-from os import system
 from ConfigParser import SafeConfigParser
 from ast import literal_eval
 from collections import Iterable
 from psp import Pv
 from itertools import islice
+from pyca import pyexc
+
+directory = path.realpath(path.join(getcwd(), path.dirname(__file__)))
 
 class devconfig(object):
 	"""
@@ -72,9 +74,9 @@ class devconfig(object):
 
 	def _setInstanceAttrs(self, kwargs):
 		"""Fills in the instance attributes using the inputted kw arguments."""
-		if "hutches" in kwargs.keys():
+		if "hutches" in kwargs.keys() and kwargs["hutches"]:
 			self._setHutches(kwargs["hutches"])
-		if "objTypes" in kwargs.keys():
+		if "objTypes" in kwargs.keys() and kwargs["objTypes"]:
 			self._setObjTypes(kwargs["objTypes"])
 		try:
 		    self._setMode(kwargs["mode"])
@@ -143,10 +145,10 @@ list".format(invalidHutches)
 
 	def _setMode(self, mode):
 		"""Sets mode. Takes pmgr or local."""
-		if mode.lower() == "pmgr" or mode.lower() == "local":
-		    self._mode = mode
-		elif mode is None:
+		if mode is None:
 			pass
+		elif mode.lower() == "pmgr" or mode.lower() == "local":
+		    self._mode = mode
 		else: 
 			raise ValueError("Invalid input: '{0}'. Mode must be 'pmgr' or \
 'local'".format(mode))
@@ -240,7 +242,7 @@ list".format(invalidHutches)
 		method to perform whatever preprocessing is necessary before using the 
 		data.
 		"""
-		df = read_csv(csv, index_col = idxCol)
+		df = read_csv(directory + "/" + csv, index_col = idxCol)
 		df = df.fillna(repNan)
 		for column in df.columns:
 			if df[column].dtype == "O":
@@ -348,70 +350,104 @@ list".format(invalidHutches)
 	#                                   Diff                                    #
 	#############################################################################
 	
-	def Diff(self, **kwargs):
+	def Diff(self, *args, **kwargs):
 		"""
 		Method that prints the diffs between two different sources. Valid pairs
 		are two live configs, a live and pmgr config, and two pmgr configs.
 		"""
 		self._setInstanceAttrs(kwargs)
-		
-		PVs = self._processKWArg(kwargs, "pv", [])
-		SNs = self._processKWArg(kwargs, "sn", [])
-		numPVs, numSNs = len(PVs), len(SNs)
-		numInputs = numPVs + numSNs
-		if numPVs == 2 and numInputs == 2:
-			self._inferFromPVs(PVs)
-			fldMap   = self._objTypeFldMaps[self._objTypes[0]]
-			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
-						zip(PVs, self._objTypes)]
-			diffDf   = self._getDiffDf(PVs, liveFlds, fldMap)
-
-		elif numPVs == 1 and numInputs == 1:
-			self._inferFromPVs(PVs)
-			fldMap   = self._objTypeFldMaps[self._objTypes[0]]
+		checkPmgr = kwargs.get('pmgr', False)
+		PVs, IDs  = self._inferFromArgs(args)
+		self._inferFromPVs(PVs)
+		fldMap  = self._objTypeFldMaps[self._objTypes[0]]   #Check if this is okay
+		devName = self._getValWhereTrue(self._objTypeNames, "objTypeNames",
+		                                "objType", self._objTypes[0])
+		numPVs, numIDs = len(PVs), len(IDs)
+		numInputs = numPVs + numIDs
+		minColLen = 20
+		if numPVs == 1 and numInputs == 1:
 			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
 						zip(PVs, self._objTypes)]
 			pmgrFlds = [self._getPmgrFldDict(pv, objType, hutch) for pv, objType,
 						hutch in zip(PVs, self._objTypes, self._hutches[0])]
-			diffDf   = self._getDiffDf(PVs, liveFlds + pmgrFlds, fldMap)
+			if all(pmgrFlds):
+				diffDfs = [self._getDiffDf(PVs, liveFlds + pmgrFlds, fldMap)]
+			else: return
 
+		elif numPVs and not numIDs:
+			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
+						zip(PVs, self._objTypes)]
+			if not checkPmgr:
+				diffDfs = [self._getDiffDf(PVs, liveFlds, fldMap)]
+			else:
+				pmgrFlds = [self._getPmgrFldDict(pv, objType, hutch) for pv,
+				            objType, hutch in zip(
+					            PVs, self._objTypes, flatten(self._hutches))]
+
+				maxColLen = len(max(flatten(
+					[liveFld.values() for liveFld in liveFlds] + 
+					[pmgrFld.values() for pmgrFld in pmgrFlds]), key=len)) + 1
+
+				if maxColLen > minColLen:
+					minColLen = maxColLen
+
+				diffDfs = [self._getDiffDf(
+					[pv], [liveFld, pmgrFld], fldMap, minColLen) for pv, liveFld, 
+					pmgrFld in zip(PVs, liveFlds, pmgrFlds)]
 		else:
 			raise NotImplementedError()
 
-		# Actually do the printing. This is probably something that should be 
-		# in a method.
-		print "\nNumber of Diffs: {0}".format(diffDf.shape[0])
-		offSet = 3
-		minColLen = 20
-		lenDiffCols = [diffDf['alias'].str.len().max() + offSet,
-					   diffDf['tooltip'].str.len().max()]
-		for i in range(2, diffDf.shape[1]):
-			maxLenCol = diffDf.iloc[:,i].astype(basestring).str.len().max()
-			if maxLenCol > minColLen:
-				lenDiffCols.append(int(maxLenCol + 2))
-			else:
-				lenDiffCols.append(int(minColLen + 1))
-		headerStr =  '\n {:<{}s}'.format('Param', lenDiffCols[0] + 2)
-		headerStr += '{:<{}s}'.format('ToolTip', lenDiffCols[1])
-		for i, pv in enumerate(PVs):
-			headerStr += '{:>{}s}'.format(pv, lenDiffCols[i+2])
-		lenRow = np.sum(lenDiffCols) + offSet + 1
-		print "-" * lenRow, headerStr, "\n", "-" * lenRow
-		diffDfStr = diffDf.to_string(index = False,
-			formatters={'alias':'{{:<{}s}}'.format(lenDiffCols[0]).format, 
-						'tooltip':'{{:<{}s}}'.format(lenDiffCols[1]).format})
-		print diffDfStr[lenRow:]
-		print "-" * lenRow, "\n"
+		paramLen, toolTipLen = [], []
+		for diffDf in diffDfs:
+			offSet = 3
+			paramLen.append(diffDf['alias'].str.len().max() + offSet)
+			toolTipLen.append(diffDf['tooltip'].str.len().max())
+		
+		for i, diffDf in enumerate(diffDfs):
+			motorDesc = liveFlds[i]["FLD_DESC"]
+			print "\n{0} PV: {1}".format(devName.capitalize(), PVs[i])
+			print "{0} Description: {1}".format(devName.capitalize(), motorDesc)
+			print "Number of Diffs: {0}".format(diffDf.shape[0])
+			lenDiffCols = [max(paramLen), max(toolTipLen)]
+			for j in range(2, diffDf.shape[1]):
+				maxLenCol = diffDf.iloc[:,j].astype(basestring).str.len().max()
+				if maxLenCol > minColLen:
+					lenDiffCols.append(int(maxLenCol + 2))
+				else:
+					lenDiffCols.append(int(minColLen + 1))
+			headerStr =  '\n {:<{}s}'.format('Param', lenDiffCols[0] + 2)
+			headerStr += '{:<{}s}'.format('ToolTip', lenDiffCols[1])
+			for col in islice(diffDf.columns, 2, len(diffDf.columns)):
+				headerStr += '{0}'.format(col)
+			lenRow = np.sum(lenDiffCols) + offSet + 1
+			print "-" * lenRow, headerStr, "\n", "-" * lenRow
+			diffDfStr = diffDf.to_string(index = False,
+				formatters={'alias':'{{:<{}s}}'.format(lenDiffCols[0]).format, 
+							'tooltip':'{{:<{}s}}'.format(lenDiffCols[1]).format})
+			# This entire printing routine is a hack because to get nice 
+			# formatting because there is a bug in pandas <0.15.0 where setting 
+			# header = False leads to minimum column width being ignored.
+			print diffDfStr[lenRow:]
+			print "-" * lenRow
+		print
 
-	def _processKWArg(self, kwargs, kw, defaultVal = None, outType = list):
+	def _inferFromArgs(self, args):
 		"""
 		Processes a key word argument and performs any preprocessing necessary.
 		"""
-		arg = kwargs.get(kw, defaultVal)
-		if isiterable(arg) or arg is None:
-			return arg
-		else:
-			return outType(arg)
+		PVs, IDs = [], []
+		for arg in args:
+			if isnumber(arg):
+				if len(arg) == 2:
+					# This is a bit of an assumption that IDs (SNs) will never 
+					# only be len 2.
+					PVs.append(arg)
+				else:
+					IDs.append(str(arg))
+			else:
+				PVs.append(arg)
+		PVs = parsePVArguments(PVs)
+		return PVs, IDs
 
 	def _inferFromPVs(self, PVs):
 		if not self._hutches:
@@ -445,20 +481,26 @@ list".format(invalidHutches)
 
 	def _getLiveFldDict(self, PV, objType):
 		"""Returns a dictionary of fields to values for the inputted PV."""
+		noConStr  = "NO CON"
 		fldDict   = {}
 		fldMap    = self._objTypeFldMaps[objType]
 		objTypeID = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
 		                                  'objType', objType)
 		for fld in fldMap.index:
-			fldDict[fld] = str(Pv.get(PV + fldMap.loc[fld]['pv']))
-			if fldMap.enum[fld]:
-				try:
-					fldDict[fld] = fldMap.enum[fld][int(fldDict[fld])]
-				except IndexError:
-					print "WARNING: index mismatch in field {0}.".format(fld) 
-					print "An ioc has been updated without updating the \
-Parameter Manager!"
-					fldDict[fld] = fldMap.enum[fld][0]
+			try:
+				fldDict[fld] = str(Pv.get(PV + fldMap.loc[fld]['pv']))
+				if fldMap.enum[fld]:
+					try:
+						fldDict[fld] = str(fldMap.enum[fld][int(fldDict[fld])])
+					except IndexError:
+						print "WARNING: index mismatch in field {0}.".format(fld) 
+						print "An ioc has been updated without updating the \
+	Parameter Manager!"
+						fldDict[fld] = fldMap.enum[fld][0]
+			except pyexc:
+				print "Could not connect to '{0}'. Setting to '{1}'.".format(
+					PV + fldMap.loc[fld]['pv'], noConStr)
+				fldDict[fld] = noConStr
 		return fldDict
 
 	def _getDiffDf(self, PVs, fldDicts, fldMap, minValColLen = 20):
@@ -486,7 +528,7 @@ Parameter Manager!"
 		for fld in fldDicts[0].keys():
 			val = fldDicts[0][fld]
 			for fldDict in islice(fldDicts, 1, len(fldDicts)):
-				if fldDict[fld] != val:
+				if fldDict[fld] != val and fld not in diffFlds:
 					diffFlds.append(fld)
 		diffFlds.sort()
 		return diffFlds
@@ -496,17 +538,21 @@ Parameter Manager!"
 		Returns a dictionary of values for the pmgr entry of the inputted device 
 		pv.
 		"""
-		try:
-			self._pmgr = self._getPmgr(objType, hutch)
-		except pmgrInitError:
-			print "Could not connect to pmgr using objType '{0}', hutch \
-'{1}'".format(objType, hutch)
+		self._pmgr = self._getPmgr(objType, hutch)
 		fldMap = self._objTypeFldMaps[objType]
 		fldID  = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
 		                               'objType', objType)
 		pvExt  = fldMap.pv[fldID]
-		devID  = str(Pv.get(pv + pvExt))
-		objID  = self._getPmgrObjFromDevID(devID, fldID)
+		try:
+			devID  = str(Pv.get(pv + pvExt))
+		except pyexc:
+			print "Could not connect to '{0}'.".format(pv + pvExt)
+			return None
+		try:
+			objID  = self._getPmgrObjFromDevID(devID, fldID)
+		except pmgrKeyError:
+			print "Key {0} for {1} not found in the pmgr.".format(devID, pv)
+			return None
 		return self._getObjFldDict(objID, objType)
 
 	def _getPmgrObjFromDevID(self, devID, fldID):
@@ -519,7 +565,9 @@ Parameter Manager!"
 	def _getObjFldDict(self, objID, objType):
 		"""Returns the field dictionary of the object given the object ID."""
 		pmgrObj = self._pmgr.objs[objID]
+		# Find out what exception gets raised if there is an invalid config
 		pmgrCfg = self._pmgr.cfgs[pmgrObj['config']]
+		# -----------------------------------------------------------------
 		fldDict = {}
 		fldMap  = self._objTypeFldMaps[objType]
 		for fld in fldMap.index:
@@ -588,68 +636,68 @@ Parameter Manager!"
 	#                            devconfig Properties                           #
 	#############################################################################
 
-	# # Instance properties
-	# @property
-	# def hutches(self):
-	# 	"""Returns a set of devconfig instance hutches."""
-	# 	return self._hutches
-	# @hutches.setter
-	# def hutches(self, *args):
-	# 	"""Sets the instance hutches to the inputted tuple/list/set."""
-	# 	hutches = set()
-	# 	for arg in args:
-	# 		hutches = hutches.union(set(arg))
-	# 	self._setHutches(hutches)
+	# Instance properties
+	@property
+	def hutches(self):
+		"""Returns a set of devconfig instance hutches."""
+		return self._hutches
+	@hutches.setter
+	def hutches(self, *args):
+		"""Sets the instance hutches to the inputted tuple/list/set."""
+		hutches = set()
+		for arg in args:
+			hutches = hutches.union(set(arg))
+		self._setHutches(hutches)
 
-	# @property
-	# def objTypes(self):
-	# 	"""Returns a set of devconfig instance objTypes."""
-	# 	return self._objTypes
-	# @objTypes.setter
-	# def objTypes(self, *args):
-	# 	"""Sets the instance objTypes to the inputed tuple/list/set."""
-	# 	objTypes = set()
-	# 	for arg in args:
-	# 		objTypes = objTypes.union(set(arg))
-	# 	self._setObjTypes(objTypes)
+	@property
+	def objTypes(self):
+		"""Returns a set of devconfig instance objTypes."""
+		return self._objTypes
+	@objTypes.setter
+	def objTypes(self, *args):
+		"""Sets the instance objTypes to the inputed tuple/list/set."""
+		objTypes = set()
+		for arg in args:
+			objTypes = objTypes.union(set(arg))
+		self._setObjTypes(objTypes)
 
-	# @property
-	# def mode(self):
-	# 	"""Returns the mode devconfig is currently running in."""
-	# 	return self._mode
-	# @localMode.setter
-	# def mode(self, mode):
-	# 	"""Sets local mode to inputted mode (pmgr/local)."""
-	# 	self._setMode(mode)
+	@property
+	def mode(self):
+		"""Returns the mode devconfig is currently running in."""
+		return self._mode
+	@mode.setter
+	def mode(self, mode):
+		"""Sets local mode to inputted mode (pmgr/local)."""
+		self._setMode(mode)
 
-	# # Parameter manager fields. 
-	# @property
-	# def allHutches(self):
-	# 	"""Returns a set of all hutches currently in the pmgr."""
-	# 	return self._allHutches
-	# @allHutches.setter
-	# def allHutches(self, *args):
-	# 	"""Cannot set _allHutches. Included to remove setting functionality."""
-	# 	print "Cannot set allHutches"
+	# Parameter manager fields. 
+	@property
+	def allHutches(self):
+		"""Returns a set of all hutches currently in the pmgr."""
+		return self._allHutches
+	@allHutches.setter
+	def allHutches(self, *args):
+		"""Cannot set _allHutches. Included to remove setting functionality."""
+		print "Cannot set allHutches"
 
-	# @property
-	# def allObjTypes(self, objTypes=set()):
-	# 	"""Returns a set of all objTypes currently in the pmgr."""
-	# 	return self._allObjTypes
-	# @allObjTypes.setter
-	# def allObjTypes(self, *args):
-	# 	"""Cannot set _allObjTypes. Included to remove setting functionality."""
-	# 	print "Cannot set allObjTypes"
+	@property
+	def allObjTypes(self, objTypes=set()):
+		"""Returns a set of all objTypes currently in the pmgr."""
+		return self._allObjTypes
+	@allObjTypes.setter
+	def allObjTypes(self, *args):
+		"""Cannot set _allObjTypes. Included to remove setting functionality."""
+		print "Cannot set allObjTypes"
 		
-	# # @property
-	# # def hutchAliases(self, hutches=set()):
-	# # 	# Will need to modify the set and return dict methods for hutch aliases
-	# # 	# as the values are going to be sets.
-	# # 	raise NotImplementedError()
-	# # @hutchAliases.setter
-	# # def hutchAliases(self, hutchAliasesDict):
-	# # 	# Need to make sure that when setting aliases that all hutches are valid
-	# # 	raise NotImplementedError()
+	@property
+	def hutchAliases(self, hutches=set()):
+		# Will need to modify the set and return dict methods for hutch aliases
+		# as the values are going to be sets.
+		raise NotImplementedError()
+	@hutchAliases.setter
+	def hutchAliases(self, hutchAliasesDict):
+		# Need to make sure that when setting aliases that all hutches are valid
+		raise NotImplementedError()
 
 	# @property
 	# def objTypeNames(self, objTypes=set()):
@@ -787,6 +835,10 @@ Parameter Manager!"
 	# 					 validKeys = self._hutchObjType, 
 	# 					 validVals = self._validLogLevels)
 
+#################################################################################
+#                               Helper Functions                                #
+#################################################################################
+
 def isiterable(obj):
 	"""
 	Function that determines if an object is an iterable, but not including 
@@ -797,7 +849,20 @@ def isiterable(obj):
 	else:
 		return isinstance(obj, Iterable)
 
-def flatten(inpIter):
+def isnumber(obj):
+	"""Checks if the input is a number."""
+	if isinstance(obj, basestring):
+		try:
+			float(obj)
+			return True
+		except ValueError:
+			return False
+	elif isinstance(obj, float) or isinstance(obj, int):
+		return True
+	else:
+		return False
+
+def flatIter(inpIter):
 	"""Recursively iterate through values in nested iterables."""
 	for val in inpIter:
 		if isiterable(val):
@@ -806,18 +871,82 @@ def flatten(inpIter):
 		else:
 			yield val
 
+def flatten(inpIter):
+	"""Returns a flattened list of the inputted iterator."""
+	return list(flatIter(inpIter))
+
 def isempty(seq):
 	"""Checks if an iterable (nested or not) is empty."""
-	return not any(1 for _ in flatten(seq))
+	return not any(1 for _ in flatIter(seq))
+
+def parsePVArguments(PVArguments):
+	"""
+	Parses PV input arguments and returns a set of motor PVs that will have
+	the pmgrUtil functions applied to.
+	"""
+	if len(PVArguments) == 0: return None
+	fullPVs = []
+	basePV = ''
+	for arg in PVArguments:
+		if getBasePV(arg):
+			basePV = getBasePV(arg)
+		if '-' in arg:
+			splitArgs = arg.split('-')
+			if getBasePV(splitArgs[0]) == basePV: 
+				fullPVs.append(splitArgs[0])
+			start = int(splitArgs[0][-2:])
+			end = int(splitArgs[1])
+			for i in range(start+1, end+1):
+				fullPVs.append(basePV + "{:02}".format(i))
+		elif basePV == getBasePV(arg):
+			fullPVs.append(arg)
+		elif len(arg) < 3:
+			fullPVs.append(basePV + "{:02}".format(int(arg)))
+		else:
+			print "invalid arg: {0}.".format(arg)
+	return fullPVs
+
+def getBasePV(PV):
+	"""
+	Returns the first base PV found in the list of PVArguments. It looks for the 
+	first colon starting from the right and then returns the string up until
+	the colon. Takes as input a string or a list of strings.
+	"""
+	if ':' not in PV or len(PV) < 9: 
+		return None
+	for i, char in enumerate(PV[::-1]):
+		if char == ':':
+			return PV[:-i]
+
 		
 #################################################################################
 #                             Stand Alone Routines                              #
 #################################################################################
 
-# def diff(*args):74
-# 	dCfg = 
+def Diff(*args, **kwargs):
+	"""Returns the diffs using the inputted paramaters."""
+	dCfg = devconfig()
+	dCfg.Diff(*args, **kwargs)
 
+#################################################################################
+#                                     Main                                      #
+#################################################################################
 
 if __name__ == "__main__":
-	dCfg = devconfig()
-	dCfg.Diff(pv=['AMO:PPL:MMS:15', 'AMO:PPL:MMS:01'])
+	validCommands = {"diff":Diff}
+	validOptions  = ["hutches", "objTypes", "mode"]
+	parser = OptionParser()
+	parser.add_option('--hutch', action='store', type='string', dest='hutches', 
+	                  default=None)
+	parser.add_option('--objType', action='store', type='string', dest='objTypes', 
+	                  default=None)
+	parser.add_option('--mode', action='store', type='string', dest='mode', 
+	                  default=None)
+	parser.add_option('--pmgr', action='store_true', dest='pmgr', default=None)
+	options, args = parser.parse_args()
+	kwargs = vars(options)
+	for cmd in validCommands.keys():
+		if cmd in args:
+			args.remove(cmd)
+			validCommands[cmd](*args, **kwargs)
+
