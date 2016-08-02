@@ -371,14 +371,30 @@ list".format(invalidHutches)
 			pmgrFlds = [self._getPmgrFldDict(pv, objType, hutch) for pv, objType,
 						hutch in zip(PVs, self._objTypes, self._hutches[0])]
 			if all(pmgrFlds):
-				diffDfs = [self._getDiffDf(PVs, liveFlds + pmgrFlds, fldMap)]
+				maxColLen = len(max(flatten(
+					[liveFld.values() for liveFld in liveFlds] + 
+					[pmgrFld.values() for pmgrFld in pmgrFlds]), key=len)) + 1
+
+				if maxColLen > minColLen:
+					minColLen = maxColLen
+
+				diffDfs = [self._getDiffDf(PVs, liveFlds + pmgrFlds, fldMap, minColLen)]
 			else: return
 
 		elif numPVs and not numIDs:
+			
+
 			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
 						zip(PVs, self._objTypes)]
 			if not checkPmgr:
-				diffDfs = [self._getDiffDf(PVs, liveFlds, fldMap)]
+
+				maxColLen = len(max(flatten(
+					[liveFld.values() for liveFld in liveFlds]), key=len)) + 1
+
+				if maxColLen > minColLen:
+					minColLen = maxColLen
+
+				diffDfs = [self._getDiffDf(PVs, liveFlds, fldMap, minColLen)]
 			else:
 				pmgrFlds = [self._getPmgrFldDict(pv, objType, hutch) for pv,
 				            objType, hutch in zip(
@@ -412,13 +428,13 @@ list".format(invalidHutches)
 			for j in range(2, diffDf.shape[1]):
 				maxLenCol = diffDf.iloc[:,j].astype(basestring).str.len().max()
 				if maxLenCol > minColLen:
-					lenDiffCols.append(int(maxLenCol + 2))
+					lenDiffCols.append(int(maxLenCol + offSet))
 				else:
 					lenDiffCols.append(int(minColLen + 1))
 			headerStr =  '\n {:<{}s}'.format('Param', lenDiffCols[0] + 2)
 			headerStr += '{:<{}s}'.format('ToolTip', lenDiffCols[1])
 			for col in islice(diffDf.columns, 2, len(diffDf.columns)):
-				headerStr += '{0}'.format(col)
+				headerStr += ' {0}'.format(col)
 			lenRow = np.sum(lenDiffCols) + offSet + 1
 			print "-" * lenRow, headerStr, "\n", "-" * lenRow
 			diffDfStr = diffDf.to_string(index = False,
