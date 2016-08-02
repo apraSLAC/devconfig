@@ -16,6 +16,8 @@ from psp import Pv
 from itertools import islice
 from pyca import pyexc
 
+from pprint import pprint
+
 directory = path.realpath(path.join(getcwd(), path.dirname(__file__)))
 
 class devconfig(object):
@@ -246,8 +248,8 @@ list".format(invalidHutches)
 		df = df.fillna(repNan)
 		for column in df.columns:
 			if df[column].dtype == "O":
-				if ( any(df[column].str.contains(r'\[\]')) or 
-				     any(df[column].str.contains(r'\(\)'))):
+				if (any(df[column].str.contains(r'\[\]')) or 
+				    any(df[column].str.contains(r'\(\)'))):
 					try:
 						df[column] = df[column].apply(literal_eval)
 					except ValueError:
@@ -345,15 +347,15 @@ list".format(invalidHutches)
 		Generalized view routine which returns a printable string version of the
 		inputted dataframe.
 		"""
-		minColLen = kwargs.get("minColLen", 20)
+		minColLen = kwargs.get("minColLen", 10)
 		offSet    = kwargs.get("offSet", 0)
 		lenCols   = kwargs.get("lenCols", [])
 		if not lenCols or len(lenCols) != len(nameIndexCols):
 			for i, name in enumerate(nameIndexCols):
 				if not i:
-					lenCols.append(df[name].str.len().max() + offSet)
+					lenCols.append(df[df.columns[i]].str.len().max() + offSet)
 				else:
-					lenCols.append(df[name].str.len().max())
+					lenCols.append(df[df.columns[i]].str.len().max())
 				
 		for i in range(len(nameIndexCols), df.shape[1]):
 			maxLenCol = df.iloc[:,i].astype(basestring).str.len().max()
@@ -361,14 +363,16 @@ list".format(invalidHutches)
 				lenCols.append(int(maxLenCol + offSet))
 			else:
 				lenCols.append(int(minColLen + 1))
-		for i, name in enumerate(nameIndexCols):
-			if not i:
-				headerStr = "\n {:<{}s}".format(name, lenCols[i] + 2)
+		headerStr = "\n "
+		for i, name in enumerate(df.columns):
+			if i < len(nameIndexCols):
+				headerStr += "{:<{}s}".format(nameIndexCols[i],lenCols[i])
+				if i < len(nameIndexCols) - 1:
+					headerStr += " " * (offSet + 1)
 			else:
-				headerStr += "{:<{}s}".format(name, lenCols[i])
-		for col in islice(df.columns, len(nameIndexCols), len(df.columns)):
-			headerStr += ' {0}'.format(col)
-		lenRow      = np.sum(lenCols) + offSet + 1
+				headerStr += "{:>{}s}".format(name, lenCols[i])
+		# lenRow      = np.sum(lenCols) + offSet + 1
+		lenRow = len(headerStr)
 		viewStr     = "-" * lenRow + headerStr + "\n" + "-" * lenRow + "\n"
 		dfFormatter = {df.columns[i]:'{{:<{}s}}'.format(lenCol).format for i, 
 		               lenCol in enumerate(lenCols[:len(nameIndexCols)])}
@@ -395,17 +399,21 @@ list".format(invalidHutches)
 		are two live configs, a live and pmgr config, and two pmgr configs.
 		"""
 		self._setInstanceAttrs(kwargs)
-		checkPmgr = kwargs.get('pmgr', False)
+		checkPmgr = kwargs.get("pmgr", False)
+		tooltip   = kwargs.get("tooltip", False)
+		minColLen = kwargs.get("minColLen", 14)
+		offSet    = kwargs.get("offSet", 1)
 		PVs, IDs  = self._inferFromArgs(args)
 		self._inferFromPVs(PVs)
 		fldMap  = self._objTypeFldMaps[self._objTypes[0]]   #Check if this is okay
 		devName = self._getValWhereTrue(self._objTypeNames, "objTypeNames",
 		                                "objType", self._objTypes[0])
 		numPVs, numIDs = len(PVs), len(IDs)
-		minColLen = 20
 		if numPVs and not numIDs:
 			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
 			            zip(PVs, self._objTypes)]
+
+
 			if checkPmgr or numPVs == 1:
 				pmgrFlds = [self._getPmgrFldDict(pv, objType, hutch) for pv,
 				            objType, hutch in zip(
@@ -416,14 +424,17 @@ list".format(invalidHutches)
 				if maxColLen > minColLen:
 					minColLen = maxColLen
 				diffDfs = [self._getDiffDf(
-					[pv], [liveFld, pmgrFld], fldMap, minColLen) for pv, liveFld, 
-					pmgrFld in zip(PVs, liveFlds, pmgrFlds)]
+					[pv], [liveFld, pmgrFld], fldMap, minColLen, offSet) for 
+					pv, liveFld, pmgrFld in zip(PVs, liveFlds, pmgrFlds)]
+
+
 			else:
 				maxColLen = len(max(flatten(
 					[liveFld.values() for liveFld in liveFlds]), key=len)) + 1
 				if maxColLen > minColLen:
 					minColLen = maxColLen
-				diffDfs = [self._getDiffDf(PVs, liveFlds, fldMap, minColLen)]
+				diffDfs = [self._getDiffDf(PVs, liveFlds, fldMap, minColLen, 
+				                           offSet)]
 		else:
 			# Future additions:
 			# Once the search function is working, add a way to print diffs
@@ -435,18 +446,26 @@ list".format(invalidHutches)
 
 		paramLen, toolTipLen = [], []
 		for diffDf in diffDfs:
-			offSet = 3
 			paramLen.append(diffDf['alias'].str.len().max() + offSet)
 			toolTipLen.append(diffDf['tooltip'].str.len().max())
-		
+
 		for i, diffDf in enumerate(diffDfs):
+			if not tooltip:
+				diffDf = diffDf.drop('tooltip', 1)
+				index  = ['Param']
+				lenDiffCols = [max(paramLen)]
+			else:
+				index  = ['Param', 'Tooltip']
+				lenDiffCols = [max(paramLen), max(toolTipLen)]
 			motorDesc = liveFlds[i]["FLD_DESC"]
 			print "{0} PV: {1}".format(devName.capitalize(), PVs[i])
 			print "{0} Description: {1}".format(devName.capitalize(), motorDesc)
 			print "Number of Diffs: {0}".format(diffDf.shape[0])
-			lenDiffCols = [max(paramLen), max(toolTipLen)]
-			print self._view(diffDf, ["Param", "Tooltip"], offSet = offSet, 
-			                 minColLen = minColLen, lenCols = lenDiffCols)
+			a = self._view(diffDf, index, offSet = offSet, 
+						   minColLen = minColLen, lenCols = lenDiffCols)
+			print self._view(diffDf, index, offSet = offSet, 
+							 minColLen = minColLen, lenCols = lenDiffCols)
+
 
 	def _inferFromArgs(self, args):
 		"""
@@ -520,7 +539,7 @@ list".format(invalidHutches)
 				fldDict[fld] = noConStr
 		return fldDict
 
-	def _getDiffDf(self, PVs, fldDicts, fldMap, minValColLen = 20):
+	def _getDiffDf(self, PVs, fldDicts, fldMap, minValColLen = 10, offSet = 0):
 		"""
 		Returns a df with the alias, tooltip and values of the different fields.
 		"""
@@ -533,7 +552,7 @@ list".format(invalidHutches)
 				PVs.append("Pmgr")
 				if len(PVs) == nDiffDicts:
 					break
-		PVs = [pv.rjust(minValColLen) for pv in PVs]
+		PVs = [pv.rjust(minValColLen - 1 + offSet) for pv in PVs]
 		for pv, diffDict in zip(PVs, diffDicts):
 			diffDf[pv] = diffDf['index'].map(diffDict)
 		diffDf = diffDf.drop('index', 1)
@@ -883,7 +902,7 @@ def flatIter(inpIter):
 	"""Recursively iterate through values in nested iterables."""
 	for val in inpIter:
 		if isiterable(val):
-			for inVal in flatten(val):
+			for inVal in flatIter(val):
 				yield inVal
 		else:
 			yield val
@@ -959,7 +978,11 @@ if __name__ == "__main__":
 	                  default=None)
 	parser.add_option('--mode', action='store', type='string', dest='mode', 
 	                  default=None)
-	parser.add_option('--pmgr', action='store_true', dest='pmgr', default=None)
+	parser.add_option('--pmgr', '-p', action='store_true', dest='pmgr', 
+	                  default=False)
+	parser.add_option('--tooltip', '-t', action='store_true', dest='tooltip', 
+	                  default=False)
+
 	options, args = parser.parse_args()
 	kwargs = vars(options)
 	for cmd in validCommands.keys():
