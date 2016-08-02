@@ -334,8 +334,47 @@ list".format(invalidHutches)
 		# 		kwargs["hutches"]).intersection(self._allHutches): 
 		# 	print "Invalid hutch entry"
 
+	#############################################################################
+	#                                   View                                    #
+	#############################################################################
 	def View(self, ID):
 		raise NotImplementedError()
+
+	def _view(self, df, nameIndexCols, **kwargs):
+		"""
+		Generalized view routine which returns a printable string version of the
+		inputted dataframe.
+		"""
+		minColLen = kwargs.get("minColLen", 20)
+		offSet    = kwargs.get("offSet", 0)
+		lenCols   = kwargs.get("lenCols", [])
+		if not lenCols or len(lenCols) != len(nameIndexCols):
+			for i, name in enumerate(nameIndexCols):
+				if not i:
+					lenCols.append(df[name].str.len().max() + offSet)
+				else:
+					lenCols.append(df[name].str.len().max())
+				
+		for i in range(len(nameIndexCols), df.shape[1]):
+			maxLenCol = df.iloc[:,i].astype(basestring).str.len().max()
+			if maxLenCol > minColLen:
+				lenCols.append(int(maxLenCol + offSet))
+			else:
+				lenCols.append(int(minColLen + 1))
+		for i, name in enumerate(nameIndexCols):
+			if not i:
+				headerStr = "\n {:<{}s}".format(name, lenCols[i] + 2)
+			else:
+				headerStr += "{:<{}s}".format(name, lenCols[i])
+		for col in islice(df.columns, len(nameIndexCols), len(df.columns)):
+			headerStr += ' {0}'.format(col)
+		lenRow      = np.sum(lenCols) + offSet + 1
+		viewStr     = "-" * lenRow + headerStr + "\n" + "-" * lenRow + "\n"
+		dfFormatter = {df.columns[i]:'{{:<{}s}}'.format(lenCol).format for i, 
+		               lenCol in enumerate(lenCols[:len(nameIndexCols)])}
+		dfStr       = df.to_string(index = False, formatters = dfFormatter)
+		viewStr    += dfStr[lenRow:] + "\n" + "-" * lenRow + "\n"
+		return viewStr
 
 	def Search(self):
 		raise NotImplementedError()
@@ -363,54 +402,35 @@ list".format(invalidHutches)
 		devName = self._getValWhereTrue(self._objTypeNames, "objTypeNames",
 		                                "objType", self._objTypes[0])
 		numPVs, numIDs = len(PVs), len(IDs)
-		numInputs = numPVs + numIDs
 		minColLen = 20
-		if numPVs == 1 and numInputs == 1:
+		if numPVs and not numIDs:
 			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
-						zip(PVs, self._objTypes)]
-			pmgrFlds = [self._getPmgrFldDict(pv, objType, hutch) for pv, objType,
-						hutch in zip(PVs, self._objTypes, self._hutches[0])]
-			if all(pmgrFlds):
-				maxColLen = len(max(flatten(
-					[liveFld.values() for liveFld in liveFlds] + 
-					[pmgrFld.values() for pmgrFld in pmgrFlds]), key=len)) + 1
-
-				if maxColLen > minColLen:
-					minColLen = maxColLen
-
-				diffDfs = [self._getDiffDf(PVs, liveFlds + pmgrFlds, fldMap, minColLen)]
-			else: return
-
-		elif numPVs and not numIDs:
-			
-
-			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
-						zip(PVs, self._objTypes)]
-			if not checkPmgr:
-
-				maxColLen = len(max(flatten(
-					[liveFld.values() for liveFld in liveFlds]), key=len)) + 1
-
-				if maxColLen > minColLen:
-					minColLen = maxColLen
-
-				diffDfs = [self._getDiffDf(PVs, liveFlds, fldMap, minColLen)]
-			else:
+			            zip(PVs, self._objTypes)]
+			if checkPmgr or numPVs == 1:
 				pmgrFlds = [self._getPmgrFldDict(pv, objType, hutch) for pv,
 				            objType, hutch in zip(
 					            PVs, self._objTypes, flatten(self._hutches))]
-
 				maxColLen = len(max(flatten(
 					[liveFld.values() for liveFld in liveFlds] + 
 					[pmgrFld.values() for pmgrFld in pmgrFlds]), key=len)) + 1
-
 				if maxColLen > minColLen:
 					minColLen = maxColLen
-
 				diffDfs = [self._getDiffDf(
 					[pv], [liveFld, pmgrFld], fldMap, minColLen) for pv, liveFld, 
 					pmgrFld in zip(PVs, liveFlds, pmgrFlds)]
+			else:
+				maxColLen = len(max(flatten(
+					[liveFld.values() for liveFld in liveFlds]), key=len)) + 1
+				if maxColLen > minColLen:
+					minColLen = maxColLen
+				diffDfs = [self._getDiffDf(PVs, liveFlds, fldMap, minColLen)]
 		else:
+			# Future additions:
+			# Once the search function is working, add a way to print diffs
+			# between:
+			# - Live devices and pmgr entries
+			# - Different pmgr entries
+			# - Pmgr entry and the rec_base it is connected to if it exists
 			raise NotImplementedError()
 
 		paramLen, toolTipLen = [], []
@@ -421,31 +441,12 @@ list".format(invalidHutches)
 		
 		for i, diffDf in enumerate(diffDfs):
 			motorDesc = liveFlds[i]["FLD_DESC"]
-			print "\n{0} PV: {1}".format(devName.capitalize(), PVs[i])
+			print "{0} PV: {1}".format(devName.capitalize(), PVs[i])
 			print "{0} Description: {1}".format(devName.capitalize(), motorDesc)
 			print "Number of Diffs: {0}".format(diffDf.shape[0])
 			lenDiffCols = [max(paramLen), max(toolTipLen)]
-			for j in range(2, diffDf.shape[1]):
-				maxLenCol = diffDf.iloc[:,j].astype(basestring).str.len().max()
-				if maxLenCol > minColLen:
-					lenDiffCols.append(int(maxLenCol + offSet))
-				else:
-					lenDiffCols.append(int(minColLen + 1))
-			headerStr =  '\n {:<{}s}'.format('Param', lenDiffCols[0] + 2)
-			headerStr += '{:<{}s}'.format('ToolTip', lenDiffCols[1])
-			for col in islice(diffDf.columns, 2, len(diffDf.columns)):
-				headerStr += ' {0}'.format(col)
-			lenRow = np.sum(lenDiffCols) + offSet + 1
-			print "-" * lenRow, headerStr, "\n", "-" * lenRow
-			diffDfStr = diffDf.to_string(index = False,
-				formatters={'alias':'{{:<{}s}}'.format(lenDiffCols[0]).format, 
-							'tooltip':'{{:<{}s}}'.format(lenDiffCols[1]).format})
-			# This entire printing routine is a hack because to get nice 
-			# formatting because there is a bug in pandas <0.15.0 where setting 
-			# header = False leads to minimum column width being ignored.
-			print diffDfStr[lenRow:]
-			print "-" * lenRow
-		print
+			print self._view(diffDf, ["Param", "Tooltip"], offSet = offSet, 
+			                 minColLen = minColLen, lenCols = lenDiffCols)
 
 	def _inferFromArgs(self, args):
 		"""
