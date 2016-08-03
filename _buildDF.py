@@ -57,9 +57,9 @@ dCfgData = {'hutch': ['amo', 'sxr', 'xpp', 'xcs', 'cxi', 'mfx', 'mec'],
             'zenity': [False, False, False, False, False, False, False]
             }
 dCfgDF = pd.DataFrame(dCfgData, columns=['hutch', 'objType', 'globalMode', 
-                                         'hutchAliases', 
-                                         'objTypeNames', 'objTypeIDs', 
-                                         'objTypeKeys', 'savePreHooks', 
+                                         'hutchAliases', 'objTypeNames', 
+                                         'objTypeIDs', 'objTypeKeys', 
+                                         'objTypeSumFlds ''savePreHooks', 
                                          'savePostHooks', 'applyPreHooks', 
                                          'applyPostHooks', 'verbosity', 
                                          'logLevel', 'loggingPath', 'zenity'])
