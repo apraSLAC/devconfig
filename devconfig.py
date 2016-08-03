@@ -12,7 +12,7 @@ from optparse import OptionParser
 from ConfigParser import SafeConfigParser
 from ast import literal_eval
 from collections import Iterable
-from psp import Pv
+from psp.Pv import get
 from itertools import islice
 from pyca import pyexc
 
@@ -50,6 +50,7 @@ class devconfig(object):
 		self._objTypeNames    = DataFrame()   #DF of objType, Names
 		self._objTypeIDs      = DataFrame()   #DF of objType, IDs
 		self._objTypeKeys     = DataFrame()   #DF of hutch, objType, keys
+		self._objTypeSumFlds  = DataFrame()
 		self._savePreHooks    = DataFrame()   #DF of hutch, objType, sPrH
 		self._savePostHooks   = DataFrame()   #DF of hutch, objType, sPoH
 		self._applyPreHooks   = DataFrame()   #DF of hutch, objType, aPrH
@@ -225,6 +226,7 @@ list".format(invalidHutches)
 		self._objTypeNames    = self._getSlice('objType', 'objTypeNames')
 		self._objTypeIDs      = self._getSlice('objType', 'objTypeIDs')
 		self._objTypeKeys     = self._getSlice('objTypeKeys')
+		self._objTypeSumFlds  = self._getSlice('objType', 'objTypeSumFlds')
 		# When starting to port over the pmgr look at this again to see if this
 		# is the right thing to do and if its even possible.
 		self._savePreHooks    = self._getSlice('savePreHooks')
@@ -318,8 +320,11 @@ list".format(invalidHutches)
 		"""Returns a list of cfg fields."""
 		return self._listFieldsWith(objType, 'obj', False)
 		
+	#############################################################################
+	#                                    Gui                                    #
+	#############################################################################
 
-	def Gui(self, **kwargs):
+	def Gui(self, *args, **kwargs):
 		"""
 		Launches the parameter manager gui for specified hutch and objType. Will
 		ask for hutch or objType if they are not provided.
@@ -336,11 +341,90 @@ list".format(invalidHutches)
 		# 		kwargs["hutches"]).intersection(self._allHutches): 
 		# 	print "Invalid hutch entry"
 
+
+	#############################################################################
+	#                                  Search                                   #
+	#############################################################################
+
+	def Search(self, *args, **kwargs):
+		raise NotImplementedError()
+
+	def _search(self):
+		raise NotImplementedError()
+		
+
 	#############################################################################
 	#                                   View                                    #
 	#############################################################################
-	def View(self, ID):
-		raise NotImplementedError()
+
+	def View(self, *args, **kwargs):
+		"""
+		Prints a dataframe containing the pertinent information about a device
+		inputted by PV or SN. Will return a search if the inputs could not be 
+		found.
+		"""
+		self._setInstanceAttrs(kwargs)
+		summary  = kwargs.get("summary", False)
+		tooltip  = kwargs.get("tooltip", True)
+		Pvs, IDs = self._inferFromArgs(args)
+		self._inferFromPvs(Pvs)
+		fldMap   = self._objTypeFldMaps[self._objTypes[0]]   #Check if this is okay
+		devName  = self._getValWhereTrue(self._objTypeNames, "objTypeNames",
+		                                "objType", self._objTypes[0])
+		numPvs, numIDs = len(Pvs), len(IDs)
+
+		# Assumptions for now
+		# - The Entries definitely exist as a pv or a pmgr entry
+
+		liveFlds = [self._getLiveFldDict(Pv, objtype) for Pv, objtype in zip(
+			Pvs, self._objTypes)]
+		pmgrFlds = [self._getPmgrFldDict(Pv, objType, hutch) for Pv, objType, 
+		            hutch in zip(Pvs, self._objTypes, flatten(self._hutches))]
+
+
+		liveDfs  = [self._getLiveViewDf(Pv, liveFld, objType, summary) for Pv,
+		            liveFld, objtype in zip(Pvs, liveFlds, self._objTypes)]
+
+
+
+
+
+
+	def _getLiveFldDict(self, Pv, objType):
+		"""Returns a dictionary of fields to values for the inputted PV."""
+		noConStr  = "NO CON"
+		fldDict   = {}
+		fldMap    = self._objTypeFldMaps[objType]
+		objTypeID = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
+		                                  'objType', objType)
+		for fld in fldMap.index:
+			try:
+				fldDict[fld] = str(get(Pv + fldMap.loc[fld]['pv']))
+				if fldMap.enum[fld]:
+					try:
+						fldDict[fld] = str(fldMap.enum[fld][int(fldDict[fld])])
+					except IndexError:
+						print "WARNING: index mismatch in field {0}.".format(fld) 
+						print "An ioc has been updated without updating the \
+Parameter Manager!"
+						fldDict[fld] = fldMap.enum[fld][0]
+			except pyexc:
+				print "Could not connect to '{0}'. Setting to '{1}'.".format(
+					Pv + fldMap.loc[fld]['pv'], noConStr)
+				fldDict[fld] = noConStr
+		return fldDict
+
+	def _getLiveViewDf(self, Pv, fldDict, objType, summary = False):
+		"""
+		Returns a dataframe containing the live values of the inputted device.
+		"""
+		summaryFlds = self._objTypeSumFlds[objType]
+		fldMap      = self._objTypeFldMaps[objType]
+		if summary:
+			liveDf  = fldMap.loc[summaryFlds][['alias', 'tooltip']].reset_index()
+		else:
+			liveDf  = fldMap.[['alias', 'tooltip']].reset_index()
+
 
 	def _view(self, df, nameIndexCols, **kwargs):
 		"""
@@ -380,17 +464,8 @@ list".format(invalidHutches)
 		viewStr    += dfStr[lenRow:] + "\n" + "-" * lenRow + "\n"
 		return viewStr
 
-	def Search(self):
-		raise NotImplementedError()
-
-	def New(self):
-		raise NotImplementedError()
-	
-	def Edit(self):
-		raise NotImplementedError()
-
 	#############################################################################
-	#                                   Diff                                    #
+	#                                    Diff                                   #
 	#############################################################################
 	
 	def Diff(self, *args, **kwargs):
@@ -403,37 +478,34 @@ list".format(invalidHutches)
 		tooltip   = kwargs.get("tooltip", False)
 		minColLen = kwargs.get("minColLen", 14)
 		offSet    = kwargs.get("offSet", 1)
-		PVs, IDs  = self._inferFromArgs(args)
-		self._inferFromPVs(PVs)
+		Pvs, IDs  = self._inferFromArgs(args)
+		self._inferFromPvs(Pvs)
 		fldMap  = self._objTypeFldMaps[self._objTypes[0]]   #Check if this is okay
 		devName = self._getValWhereTrue(self._objTypeNames, "objTypeNames",
 		                                "objType", self._objTypes[0])
-		numPVs, numIDs = len(PVs), len(IDs)
-		if numPVs and not numIDs:
-			liveFlds = [self._getLiveFldDict(pv, objType) for pv, objType in 
-			            zip(PVs, self._objTypes)]
-
-
-			if checkPmgr or numPVs == 1:
-				pmgrFlds = [self._getPmgrFldDict(pv, objType, hutch) for pv,
+		numPvs, numIDs = len(Pvs), len(IDs)
+		# Reorganize the use cases when implmenting the SN side of diff
+		if numPvs and not numIDs:
+			liveFlds = [self._getLiveFldDict(Pv, objType) for Pv, objType in 
+			            zip(Pvs, self._objTypes)]
+			if checkPmgr or numPvs == 1:
+				pmgrFlds = [self._getPmgrFldDict(Pv, objType, hutch) for Pv,
 				            objType, hutch in zip(
-					            PVs, self._objTypes, flatten(self._hutches))]
+					            Pvs, self._objTypes, flatten(self._hutches))]
 				maxColLen = len(max(flatten(
 					[liveFld.values() for liveFld in liveFlds] + 
 					[pmgrFld.values() for pmgrFld in pmgrFlds]), key=len)) + 1
 				if maxColLen > minColLen:
 					minColLen = maxColLen
 				diffDfs = [self._getDiffDf(
-					[pv], [liveFld, pmgrFld], fldMap, minColLen, offSet) for 
-					pv, liveFld, pmgrFld in zip(PVs, liveFlds, pmgrFlds)]
-
-
+					[Pv], [liveFld, pmgrFld], fldMap, minColLen, offSet) for 
+					Pv, liveFld, pmgrFld in zip(Pvs, liveFlds, pmgrFlds)]
 			else:
 				maxColLen = len(max(flatten(
 					[liveFld.values() for liveFld in liveFlds]), key=len)) + 1
 				if maxColLen > minColLen:
 					minColLen = maxColLen
-				diffDfs = [self._getDiffDf(PVs, liveFlds, fldMap, minColLen, 
+				diffDfs = [self._getDiffDf(Pvs, liveFlds, fldMap, minColLen, 
 				                           offSet)]
 		else:
 			# Future additions:
@@ -458,7 +530,7 @@ list".format(invalidHutches)
 				index  = ['Param', 'Tooltip']
 				lenDiffCols = [max(paramLen), max(toolTipLen)]
 			motorDesc = liveFlds[i]["FLD_DESC"]
-			print "{0} PV: {1}".format(devName.capitalize(), PVs[i])
+			print "{0} PV: {1}".format(devName.capitalize(), Pvs[i])
 			print "{0} Description: {1}".format(devName.capitalize(), motorDesc)
 			print "Number of Diffs: {0}".format(diffDf.shape[0])
 			a = self._view(diffDf, index, offSet = offSet, 
@@ -471,43 +543,43 @@ list".format(invalidHutches)
 		"""
 		Processes a key word argument and performs any preprocessing necessary.
 		"""
-		PVs, IDs = [], []
+		Pvs, IDs = [], []
 		for arg in args:
 			if isnumber(arg):
 				if len(arg) == 2:
 					# This is a bit of an assumption that IDs (SNs) will never 
 					# only be len 2.
-					PVs.append(arg)
+					Pvs.append(arg)
 				else:
 					IDs.append(str(arg))
 			else:
-				PVs.append(arg)
-		PVs = parsePVArguments(PVs)
-		return PVs, IDs
+				Pvs.append(arg)
+		Pvs = parsePvArguments(Pvs)
+		return Pvs, IDs
 
-	def _inferFromPVs(self, PVs):
+	def _inferFromPvs(self, Pvs):
 		if not self._hutches:
-			for pv in PVs:
-				hutches, _ = self._getValidHutches(pv[:3])
+			for Pv in Pvs:
+				hutches, _ = self._getValidHutches(Pv[:3])
 				if hutches:
 					self._hutches.append(hutches)
 				else:
 					break
 			# Porbably need to turn this into its own method
-			if len(self._hutches) != len(PVs):
+			if len(self._hutches) != len(Pvs):
 				self._hutches = []
 				print "Could not infer hutch(es) from PV(s). Please enter hutch:"
-				for pv in PVs:
+				for Pv in Pvs:
 					inpHutch = None
 					while not inpHutch:
-						inpHutch = input("{0} - ".format(pv))
+						inpHutch = input("{0} - ".format(Pv))
 						if inpHutch not in self._allHutches:
 							print "Invalid hutch entry: '{0}'".format(inpHutch)
 							inpHutch = None
 					self._hutches.append([inpHutch])
 
 		if not self._objTypes:
-			for pv, hutch in zip(PVs, self._hutches):
+			for Pv, hutch in zip(Pvs, self._hutches):
 				# Yes I am a lazy sob
 				if len(self._allObjTypes) == 1:
 					self._objTypes.append(list(self._allObjTypes)[0])
@@ -515,46 +587,22 @@ list".format(invalidHutches)
 					# Fill this in at some point
 					raise NotImplementedError()
 
-	def _getLiveFldDict(self, PV, objType):
-		"""Returns a dictionary of fields to values for the inputted PV."""
-		noConStr  = "NO CON"
-		fldDict   = {}
-		fldMap    = self._objTypeFldMaps[objType]
-		objTypeID = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
-		                                  'objType', objType)
-		for fld in fldMap.index:
-			try:
-				fldDict[fld] = str(Pv.get(PV + fldMap.loc[fld]['pv']))
-				if fldMap.enum[fld]:
-					try:
-						fldDict[fld] = str(fldMap.enum[fld][int(fldDict[fld])])
-					except IndexError:
-						print "WARNING: index mismatch in field {0}.".format(fld) 
-						print "An ioc has been updated without updating the \
-	Parameter Manager!"
-						fldDict[fld] = fldMap.enum[fld][0]
-			except pyexc:
-				print "Could not connect to '{0}'. Setting to '{1}'.".format(
-					PV + fldMap.loc[fld]['pv'], noConStr)
-				fldDict[fld] = noConStr
-		return fldDict
-
-	def _getDiffDf(self, PVs, fldDicts, fldMap, minValColLen = 10, offSet = 0):
+	def _getDiffDf(self, Pvs, fldDicts, fldMap, minValColLen = 10, offSet = 0):
 		"""
 		Returns a df with the alias, tooltip and values of the different fields.
 		"""
 		idxDiffs  = self._getDiffFlds(fldDicts)
 		diffDicts = [{i:fldDict[i] for i in idxDiffs} for fldDict in fldDicts]
 		diffDf    = fldMap.loc[idxDiffs][['alias', 'tooltip']].reset_index()
-		nPVs, nDiffDicts = len(PVs), len(diffDicts)
-		if nPVs != nDiffDicts:
-			for pv in PVs:
-				PVs.append("Pmgr")
-				if len(PVs) == nDiffDicts:
+		nPvs, nDiffDicts = len(Pvs), len(diffDicts)
+		if nPvs != nDiffDicts:
+			for Pv in Pvs:
+				Pvs.append("Pmgr")
+				if len(Pvs) == nDiffDicts:
 					break
-		PVs = [pv.rjust(minValColLen - 1 + offSet) for pv in PVs]
-		for pv, diffDict in zip(PVs, diffDicts):
-			diffDf[pv] = diffDf['index'].map(diffDict)
+		Pvs = [Pv.rjust(minValColLen - 1 + offSet) for Pv in Pvs]
+		for Pv, diffDict in zip(Pvs, diffDicts):
+			diffDf[Pv] = diffDf['index'].map(diffDict)
 		diffDf = diffDf.drop('index', 1)
 		return diffDf
 
@@ -569,25 +617,25 @@ list".format(invalidHutches)
 		diffFlds.sort()
 		return diffFlds
 		
-	def _getPmgrFldDict(self, pv, objType, hutch):
+	def _getPmgrFldDict(self, Pv, objType, hutch):
 		"""
 		Returns a dictionary of values for the pmgr entry of the inputted device 
-		pv.
+		Pv.
 		"""
 		self._pmgr = self._getPmgr(objType, hutch)
 		fldMap = self._objTypeFldMaps[objType]
 		fldID  = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
 		                               'objType', objType)
-		pvExt  = fldMap.pv[fldID]
+		PvExt  = fldMap.Pv[fldID]
 		try:
-			devID  = str(Pv.get(pv + pvExt))
+			devID  = str(get(Pv + PvExt))
 		except pyexc:
-			print "Could not connect to '{0}'.".format(pv + pvExt)
+			print "Could not connect to '{0}'.".format(Pv + PvExt)
 			return None
 		try:
 			objID  = self._getPmgrObjFromDevID(devID, fldID)
 		except pmgrKeyError:
-			print "Key {0} for {1} not found in the pmgr.".format(devID, pv)
+			print "Key {0} for {1} not found in the pmgr.".format(devID, Pv)
 			return None
 		return self._getObjFldDict(objID, objType)
 
@@ -613,18 +661,51 @@ list".format(invalidHutches)
 				fldDict[fld] = str(pmgrObj[fld])
 		return fldDict
 		
-                    
+	#############################################################################
+	#                                   Import                                  #
+	#############################################################################
+
 	def Import(self):
 		raise NotImplementedError()
+
+	#############################################################################
+	#                                    New                                    #
+	#############################################################################
+
+	def New(self):
+		raise NotImplementedError()
+
+	#############################################################################
+	#                                    Edit                                   #
+	#############################################################################
+	
+	def Edit(self):
+		raise NotImplementedError()
+
+	#############################################################################
+	#                                    Save                                   #
+	#############################################################################
 
 	def Save(self):
 		raise NotImplementedError()
 
+	#############################################################################
+	#                                   Apply                                   #
+	#############################################################################
+
 	def Apply(self):
 		raise NotImplementedError()
 
+	#############################################################################
+	#                                   Revert                                  #
+	#############################################################################
+
 	def Revert(self):
 		raise NotImplementedError()
+
+	#############################################################################
+	#                                   Refresh                                 #
+	#############################################################################
 
 	def Refresh(self, mode = None):
 		"""Reinitializes the metadata using the pmgr or the csv."""
@@ -915,44 +996,44 @@ def isempty(seq):
 	"""Checks if an iterable (nested or not) is empty."""
 	return not any(1 for _ in flatIter(seq))
 
-def parsePVArguments(PVArguments):
+def parsePvArguments(PvArguments):
 	"""
 	Parses PV input arguments and returns a set of motor PVs that will have
 	the pmgrUtil functions applied to.
 	"""
-	if len(PVArguments) == 0: return None
-	fullPVs = []
-	basePV = ''
-	for arg in PVArguments:
-		if getBasePV(arg):
-			basePV = getBasePV(arg)
+	if len(PvArguments) == 0: return None
+	fullPvs = []
+	basePv = ''
+	for arg in PvArguments:
+		if getBasePv(arg):
+			basePv = getBasePv(arg)
 		if '-' in arg:
 			splitArgs = arg.split('-')
-			if getBasePV(splitArgs[0]) == basePV: 
-				fullPVs.append(splitArgs[0])
+			if getBasePv(splitArgs[0]) == basePv: 
+				fullPvs.append(splitArgs[0])
 			start = int(splitArgs[0][-2:])
 			end = int(splitArgs[1])
 			for i in range(start+1, end+1):
-				fullPVs.append(basePV + "{:02}".format(i))
-		elif basePV == getBasePV(arg):
-			fullPVs.append(arg)
+				fullPvs.append(basePv + "{:02}".format(i))
+		elif basePv == getBasePv(arg):
+			fullPvs.append(arg)
 		elif len(arg) < 3:
-			fullPVs.append(basePV + "{:02}".format(int(arg)))
+			fullPvs.append(basePv + "{:02}".format(int(arg)))
 		else:
 			print "invalid arg: {0}.".format(arg)
-	return fullPVs
+	return fullPvs
 
-def getBasePV(PV):
+def getBasePv(Pv):
 	"""
 	Returns the first base PV found in the list of PVArguments. It looks for the 
 	first colon starting from the right and then returns the string up until
 	the colon. Takes as input a string or a list of strings.
 	"""
-	if ':' not in PV or len(PV) < 9: 
+	if ':' not in Pv or len(Pv) < 9: 
 		return None
-	for i, char in enumerate(PV[::-1]):
+	for i, char in enumerate(Pv[::-1]):
 		if char == ':':
-			return PV[:-i]
+			return Pv[:-i]
 
 		
 #################################################################################
@@ -981,6 +1062,8 @@ if __name__ == "__main__":
 	parser.add_option('--pmgr', '-p', action='store_true', dest='pmgr', 
 	                  default=False)
 	parser.add_option('--tooltip', '-t', action='store_true', dest='tooltip', 
+	                  default=False)
+	parser.add_option('--summary', '-s', action='store_true', dest='summary', 
 	                  default=False)
 
 	options, args = parser.parse_args()
