@@ -445,8 +445,8 @@ Parameter Manager!"
 			objName = self._pmgr.objs[objID]["name"]
 			cfgID   = self._pmgr.objs[objID]["config"]
 			cfgName = self._pmgr.cfgs[cfgID]["name"]
-			objDateMod  = self._pmgr.objs[objID]['dt_updated']
-			cfgDateMod  = self._pmgr.cfgs[cfgID]['dt_updated']
+			objDateMod = self._pmgr.objs[objID]['dt_updated']
+			cfgDateMod = self._pmgr.cfgs[cfgID]['dt_updated']
 			if objDateMod > cfgDateMod:
 				lastMod = objDateMod
 			else:
