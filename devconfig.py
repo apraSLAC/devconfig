@@ -341,7 +341,6 @@ list".format(invalidHutches)
 		# 		kwargs["hutches"]).intersection(self._allHutches): 
 		# 	print "Invalid hutch entry"
 
-
 	#############################################################################
 	#                                  Search                                   #
 	#############################################################################
@@ -349,9 +348,22 @@ list".format(invalidHutches)
 	def Search(self, *args, **kwargs):
 		raise NotImplementedError()
 
-	def _search(self):
-		raise NotImplementedError()
+	def _search(self, *args, **kwargs):
 		
+		raise NotImplementedError()
+
+	def _getObjWithID(self, devID, fldID):
+		"""
+		Returns the obj ID of the device using the device ID. Returns None if 
+		no entry was found.
+		"""
+		pmgr  = self._pmgr
+		devID = str(devID)
+		pmgr.updateTables()
+		for objID in pmgr.objs.keys():
+			if devID == pmgr.objs[objID][fldID]:
+				return objID
+		return None
 
 	#############################################################################
 	#                                   View                                    #
@@ -382,12 +394,9 @@ list".format(invalidHutches)
 		            hutch in zip(Pvs, self._objTypes, flatten(self._hutches))]
 
 
-		liveDfs  = [self._getLiveViewDf(Pv, liveFld, objType, summary) for Pv,
-		            liveFld, objtype in zip(Pvs, liveFlds, self._objTypes)]
-
-
-
-
+		liveDfs  = [self._getLiveViewDf(Pv, liveFld, objType, hutch, summary) 
+		            for Pv, liveFld, objtype, hutch in zip(
+			            Pvs, liveFlds, self._objTypes, flatten(self._hutches))]
 
 
 	def _getLiveFldDict(self, Pv, objType):
@@ -418,12 +427,38 @@ Parameter Manager!"
 		"""
 		Returns a dataframe containing the live values of the inputted device.
 		"""
+		self._pmgr  = self._getPmgr(objType, hutch)
+		self._pmgr.updateTables()
 		summaryFlds = self._objTypeSumFlds[objType]
 		fldMap      = self._objTypeFldMaps[objType]
+		fldID       = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
+		                               'objType', objType)		
 		if summary:
 			liveDf  = fldMap.loc[summaryFlds][['alias', 'tooltip']].reset_index()
 		else:
 			liveDf  = fldMap.[['alias', 'tooltip']].reset_index()
+		objID       = self._getObjWithID(fldDict[fldID]. fldID)
+	    if not pmgrObjID:
+		    inPmgr, objName, cfgName, lastMod = "No", "N/A", "N/A", "N/A"
+		else:
+			inPmgr  = "Yes"
+			objName = self._pmgr.objs[objID]["name"]
+			cfgID   = self._pmgr.objs[objID]["config"]
+			cfgName = self._pmgr.cfgs[cfgID]["name"]
+			objDateMod  = self._pmgr.objs[objID]['dt_updated']
+			cfgDateMod  = self._pmgr.cfgs[cfgID]['dt_updated']
+			if objDateMod > cfgDateMod:
+				lastMod = objDateMod
+			else:
+				lastMod = cfgDateMod
+		pmgrInfo = [("Pmgr Entry", "Is this device in pmgr", inPmgr), 
+		            ("  Obj Name", "Pmgr object name", objName),
+		            ("  Cfg Name", "Pmgr config name", cfgName),
+		            ("  Last Modified", "Date of last entry modification",
+		             lastMod)]
+		
+			
+
 
 
 	def _view(self, df, nameIndexCols, **kwargs):
@@ -623,6 +658,7 @@ Parameter Manager!"
 		Pv.
 		"""
 		self._pmgr = self._getPmgr(objType, hutch)
+		self._pmgr.updateTables()
 		fldMap = self._objTypeFldMaps[objType]
 		fldID  = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
 		                               'objType', objType)
@@ -650,6 +686,7 @@ Parameter Manager!"
 		"""Returns the field dictionary of the object given the object ID."""
 		pmgrObj = self._pmgr.objs[objID]
 		# Find out what exception gets raised if there is an invalid config
+		# -----------------------------------------------------------------
 		pmgrCfg = self._pmgr.cfgs[pmgrObj['config']]
 		# -----------------------------------------------------------------
 		fldDict = {}
