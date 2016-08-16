@@ -32,7 +32,6 @@ dCfgData = {'hutch': ['amo', 'sxr', 'xpp', 'xcs', 'cxi', 'mfx', 'mec'],
                               ('FLD_DESC', 'FLD_SN', 'FLD_PN', 'FLD_PORT'),
                               ('FLD_DESC', 'FLD_SN', 'FLD_PN', 'FLD_PORT'),
                               ('FLD_DESC', 'FLD_SN', 'FLD_PN', 'FLD_PORT'),
-                              ('FLD_DESC', 'FLD_SN', 'FLD_PN', 'FLD_PORT'),
                               ('FLD_DESC', 'FLD_SN', 'FLD_PN', 'FLD_PORT')],
             'savePreHooks': ['savePrehooks.ims_motor', 'savePrehooks.ims_motor', 
                              'savePrehooks.ims_motor', 'savePrehooks.ims_motor', 
@@ -56,12 +55,7 @@ dCfgData = {'hutch': ['amo', 'sxr', 'xpp', 'xcs', 'cxi', 'mfx', 'mec'],
             'loggingPath': ['', '', '', '', '', '', ''],
             'zenity': [False, False, False, False, False, False, False]
             }
-dCfgDF = pd.DataFrame(dCfgData, columns=['hutch', 'objType', 'globalMode', 
-                                         'hutchAliases', 'objTypeNames', 
-                                         'objTypeIDs', 'objTypeKeys', 
-                                         'objTypeSumFlds ''savePreHooks', 
-                                         'savePostHooks', 'applyPreHooks', 
-                                         'applyPostHooks', 'verbosity', 
-                                         'logLevel', 'loggingPath', 'zenity'])
+cols = dCfgData.keys()
+dCfgDF = pd.DataFrame(dCfgData, columns=cols)
 if __name__ == "__main__":
 	dCfgDF.to_csv('db/localMode.csv')
