@@ -434,12 +434,17 @@ Parameter Manager!"
 		fldID       = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
 		                               'objType', objType)		
 		if summary:
-			liveDf  = fldMap.loc[summaryFlds][['alias', 'tooltip']].reset_index()
+			liveDf = fldMap.loc[summaryFlds][['alias', 'tooltip']].reset_index()
 		else:
-			liveDf  = fldMap.[['alias', 'tooltip']].reset_index()
-		objID       = self._getObjWithID(fldDict[fldID]. fldID)
-	    if not pmgrObjID:
-		    inPmgr, objName, cfgName, lastMod = "No", "N/A", "N/A", "N/A"
+			liveDf = fldMap[['alias', 'tooltip']].reset_index()
+		objID  = self._getObjWithID(fldDict[fldID]. fldID)
+		pmgrDf = self._getPmgrDevSum(objID)
+		viewDf = pd.concat(liveDf, pmgrDf)
+		return viewDf
+
+	def _getPmgrDevSum(self, objID):
+		if not objID:
+			inPmgr, objName, cfgName, lastMod = "No", "N/A", "N/A", "N/A"
 		else:
 			inPmgr  = "Yes"
 			objName = self._pmgr.objs[objID]["name"]
@@ -456,6 +461,7 @@ Parameter Manager!"
 		            ("  Cfg Name", "Pmgr config name", cfgName),
 		            ("  Last Modified", "Date of last entry modification",
 		             lastMod)]
+		return pd.DataFrame(pmgrInfo)
 		
 			
 
@@ -481,17 +487,20 @@ Parameter Manager!"
 			if maxLenCol > minColLen:
 				lenCols.append(int(maxLenCol + offSet))
 			else:
-				lenCols.append(int(minColLen + 1))
+				lenCols.append(int(minColLen))
 		headerStr = "\n "
+		# print nameIndexCols
 		for i, name in enumerate(df.columns):
 			if i < len(nameIndexCols):
-				headerStr += "{:<{}s}".format(nameIndexCols[i],lenCols[i])
+				headerStr += "{:<{}s}".format(nameIndexCols[i], lenCols[i])
 				if i < len(nameIndexCols) - 1:
 					headerStr += " " * (offSet + 1)
 			else:
+				# headerStr += " " * (offSet + 1)
 				headerStr += "{:>{}s}".format(name, lenCols[i])
-		# lenRow      = np.sum(lenCols) + offSet + 1
+
 		lenRow = len(headerStr)
+		print lenRow
 		viewStr     = "-" * lenRow + headerStr + "\n" + "-" * lenRow + "\n"
 		dfFormatter = {df.columns[i]:'{{:<{}s}}'.format(lenCol).format for i, 
 		               lenCol in enumerate(lenCols[:len(nameIndexCols)])}
@@ -512,7 +521,7 @@ Parameter Manager!"
 		checkPmgr = kwargs.get("pmgr", False)
 		tooltip   = kwargs.get("tooltip", False)
 		minColLen = kwargs.get("minColLen", 14)
-		offSet    = kwargs.get("offSet", 1)
+		offSet    = kwargs.get("offSet", 0)
 		Pvs, IDs  = self._inferFromArgs(args)
 		self._inferFromPvs(Pvs)
 		fldMap  = self._objTypeFldMaps[self._objTypes[0]]   #Check if this is okay
@@ -553,8 +562,9 @@ Parameter Manager!"
 
 		paramLen, toolTipLen = [], []
 		for diffDf in diffDfs:
-			paramLen.append(diffDf['alias'].str.len().max() + offSet)
-			toolTipLen.append(diffDf['tooltip'].str.len().max())
+			if diffDf.shape[0] != 0:
+				paramLen.append(diffDf['alias'].str.len().max() + offSet)
+				toolTipLen.append(diffDf['tooltip'].str.len().max())
 
 		for i, diffDf in enumerate(diffDfs):
 			if not tooltip:
@@ -568,11 +578,9 @@ Parameter Manager!"
 			print "{0} PV: {1}".format(devName.capitalize(), Pvs[i])
 			print "{0} Description: {1}".format(devName.capitalize(), motorDesc)
 			print "Number of Diffs: {0}".format(diffDf.shape[0])
-			a = self._view(diffDf, index, offSet = offSet, 
-						   minColLen = minColLen, lenCols = lenDiffCols)
-			print self._view(diffDf, index, offSet = offSet, 
-							 minColLen = minColLen, lenCols = lenDiffCols)
-
+			if diffDf.shape[0] != 0:
+				print self._view(diffDf, index, offSet = offSet, 
+				                 minColLen = minColLen, lenCols = lenDiffCols)				
 
 	def _inferFromArgs(self, args):
 		"""
@@ -635,7 +643,7 @@ Parameter Manager!"
 				Pvs.append("Pmgr")
 				if len(Pvs) == nDiffDicts:
 					break
-		Pvs = [Pv.rjust(minValColLen - 1 + offSet) for Pv in Pvs]
+		Pvs = [Pv.rjust(minValColLen - 1 + offSet, "-") for Pv in Pvs]
 		for Pv, diffDict in zip(Pvs, diffDicts):
 			diffDf[Pv] = diffDf['index'].map(diffDict)
 		diffDf = diffDf.drop('index', 1)
@@ -662,7 +670,7 @@ Parameter Manager!"
 		fldMap = self._objTypeFldMaps[objType]
 		fldID  = self._getValWhereTrue(self._objTypeIDs, 'objTypeIDs', 
 		                               'objType', objType)
-		PvExt  = fldMap.Pv[fldID]
+		PvExt  = fldMap.pv[fldID]
 		try:
 			devID  = str(get(Pv + PvExt))
 		except pyexc:
@@ -748,6 +756,13 @@ Parameter Manager!"
 		"""Reinitializes the metadata using the pmgr or the csv."""
 		self._setMode(local)
 		self._setAttrs()
+
+	#############################################################################
+	#                                    Pmgr                                   #
+	#############################################################################
+
+	def Pmgr(self):
+		raise NotImplementedError()
 
 	#############################################################################
 	#                              Property Methods                             #
