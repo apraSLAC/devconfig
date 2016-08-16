@@ -475,6 +475,7 @@ Parameter Manager!"
 		minColLen = kwargs.get("minColLen", 10)
 		offSet    = kwargs.get("offSet", 0)
 		lenCols   = kwargs.get("lenCols", [])
+		print offSet
 		if not lenCols or len(lenCols) != len(nameIndexCols):
 			for i, name in enumerate(nameIndexCols):
 				if not i:
@@ -569,10 +570,10 @@ Parameter Manager!"
 		for i, diffDf in enumerate(diffDfs):
 			if not tooltip:
 				diffDf = diffDf.drop('tooltip', 1)
-				index  = ['Param']
+				index  = ['Parameters']
 				lenDiffCols = [max(paramLen)]
 			else:
-				index  = ['Param', 'Tooltip']
+				index  = ['Parameters', 'Tooltip']
 				lenDiffCols = [max(paramLen), max(toolTipLen)]
 			motorDesc = liveFlds[i]["FLD_DESC"]
 			print "{0} PV: {1}".format(devName.capitalize(), Pvs[i])
@@ -1117,6 +1118,8 @@ if __name__ == "__main__":
 	                  default=False)
 	parser.add_option('--summary', '-s', action='store_true', dest='summary', 
 	                  default=False)
+	parser.add_option('--offset', action='store',type='int',  dest='offSet', 
+	                  default=0)
 
 	options, args = parser.parse_args()
 	kwargs = vars(options)
