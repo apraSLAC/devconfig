@@ -475,7 +475,6 @@ Parameter Manager!"
 		minColLen = kwargs.get("minColLen", 10)
 		offSet    = kwargs.get("offSet", 0)
 		lenCols   = kwargs.get("lenCols", [])
-		print offSet
 		if not lenCols or len(lenCols) != len(nameIndexCols):
 			for i, name in enumerate(nameIndexCols):
 				if not i:
@@ -486,28 +485,34 @@ Parameter Manager!"
 		for i in range(len(nameIndexCols), df.shape[1]):
 			maxLenCol = df.iloc[:,i].astype(basestring).str.len().max()
 			if maxLenCol > minColLen:
-				lenCols.append(int(maxLenCol + offSet))
+				lenCols.append(int(maxLenCol))
 			else:
 				lenCols.append(int(minColLen))
 		headerStr = "\n "
 		# print nameIndexCols
+		# print sum(lenCols)
 		for i, name in enumerate(df.columns):
 			if i < len(nameIndexCols):
-				headerStr += "{:<{}s}".format(nameIndexCols[i], lenCols[i])
+				print nameIndexCols[i], lenCols[i]
+				headerStr += "{:<{}s} ".format(nameIndexCols[i], lenCols[i]) 
 				if i < len(nameIndexCols) - 1:
-					headerStr += " " * (offSet + 1)
+					headerStr += " "
 			else:
 				# headerStr += " " * (offSet + 1)
+				print name, lenCols[i]
 				headerStr += "{:>{}s}".format(name, lenCols[i])
+				if i < (len(df.columns) - 1):
+					headerStr += " " * bool(offSet)
 
 		lenRow = len(headerStr)
 		print lenRow
+		print headerStr
 		viewStr     = "-" * lenRow + headerStr + "\n" + "-" * lenRow + "\n"
 		dfFormatter = {df.columns[i]:'{{:<{}s}}'.format(lenCol).format for i, 
 		               lenCol in enumerate(lenCols[:len(nameIndexCols)])}
 		dfStr       = df.to_string(index = False, formatters = dfFormatter)
 		viewStr    += dfStr[lenRow:] + "\n" + "-" * lenRow + "\n"
-		return viewStr
+		return sum(lenCols)
 
 	#############################################################################
 	#                                    Diff                                   #
@@ -562,24 +567,29 @@ Parameter Manager!"
 			raise NotImplementedError()
 
 		paramLen, toolTipLen = [], []
+		index  = ['Parameter', 'Tooltip']
 		for diffDf in diffDfs:
 			if diffDf.shape[0] != 0:
-				paramLen.append(diffDf['alias'].str.len().max() + offSet)
-				toolTipLen.append(diffDf['tooltip'].str.len().max())
+				paramLen.append(max(diffDf['alias'].str.len().max(), 
+				                    len(index[0])) + offSet)
+				if tooltip:
+					toolTipLen.append(max(diffDf['tooltip'].str.len().max(), 
+					                      len(index[1])))
+		if diffDf.shape[0] != 0:
+			if tooltip:
+				lenDiffCols = [max(paramLen), max(toolTipLen)]
+			else:
+				index.remove('Tooltip')
+				lenDiffCols = [max(paramLen)]
 
 		for i, diffDf in enumerate(diffDfs):
-			if not tooltip:
-				diffDf = diffDf.drop('tooltip', 1)
-				index  = ['Parameters']
-				lenDiffCols = [max(paramLen)]
-			else:
-				index  = ['Parameters', 'Tooltip']
-				lenDiffCols = [max(paramLen), max(toolTipLen)]
 			motorDesc = liveFlds[i]["FLD_DESC"]
 			print "{0} PV: {1}".format(devName.capitalize(), Pvs[i])
 			print "{0} Description: {1}".format(devName.capitalize(), motorDesc)
 			print "Number of Diffs: {0}".format(diffDf.shape[0])
 			if diffDf.shape[0] != 0:
+				if not tooltip:
+					diffDf = diffDf.drop('tooltip', 1)
 				print self._view(diffDf, index, offSet = offSet, 
 				                 minColLen = minColLen, lenCols = lenDiffCols)				
 
