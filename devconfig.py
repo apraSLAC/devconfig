@@ -489,8 +489,6 @@ Parameter Manager!"
 			else:
 				lenCols.append(int(minColLen))
 		headerStr = "\n "
-		# print nameIndexCols
-		# print sum(lenCols)
 		for i, name in enumerate(df.columns):
 			if i < len(nameIndexCols):
 				print nameIndexCols[i], lenCols[i]
@@ -499,20 +497,21 @@ Parameter Manager!"
 					headerStr += " "
 			else:
 				# headerStr += " " * (offSet + 1)
-				print name, lenCols[i]
+				# print name, lenCols[i]
 				headerStr += "{:>{}s}".format(name, lenCols[i])
 				if i < (len(df.columns) - 1):
 					headerStr += " " * bool(offSet)
 
 		lenRow = len(headerStr)
-		print lenRow
-		print headerStr
+		# print lenRow
+		# print headerStr
 		viewStr     = "-" * lenRow + headerStr + "\n" + "-" * lenRow + "\n"
 		dfFormatter = {df.columns[i]:'{{:<{}s}}'.format(lenCol).format for i, 
 		               lenCol in enumerate(lenCols[:len(nameIndexCols)])}
 		dfStr       = df.to_string(index = False, formatters = dfFormatter)
 		viewStr    += dfStr[lenRow:] + "\n" + "-" * lenRow + "\n"
-		return sum(lenCols)
+		# return sum(lenCols)
+		return viewStr
 
 	#############################################################################
 	#                                    Diff                                   #
