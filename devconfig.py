@@ -25,16 +25,16 @@ class devconfig(object):
 	Main devconfig class that interfaces with the pmgr
 
 	Methods:
-	.Gui()              Launches the pmgr gui for the given hutch and objType
-	.View()             Shows device info from the pmgr
-	.Search()           Searches the pmgr for the inputted obj/cfg/hutch/objType
-	.New()              Add new objs/cfgs/hutch/objtypes to pmgr
-	.Edit()             Edit existing objs/cfgs/hutch/objtypes
-	.Diff()             Return diffs between inputted PVs, or PV and pmgr entry
-	.Import()           Import cfg dict to pmgr
-	.Save()             Save obj/cfg to pmgr
-	.Apply()            Apply pmgr values to device
-	.Update()           Search for updates, and/or update devconfig pmgr entries
+	.gui()              Launches the pmgr gui for the given hutch and objType
+	.view()             Shows device info from the pmgr
+	.search()           Searches the pmgr for the inputted obj/cfg/hutch/objType
+	.new()              Add new objs/cfgs/hutch/objtypes to pmgr
+	.edit()             Edit existing objs/cfgs/hutch/objtypes
+	.diff()             Return diffs between inputted PVs, or PV and pmgr entry
+	.save()             Save obj/cfg to pmgr
+	.apply()            Apply pmgr values to device
+	.update()           Search for updates, and/or update devconfig pmgr entries
+	.refresh()          Refresh devconfig state
 	"""
 	def __init__(self, **kwargs):
 		# All meta data should be fetched from the pmgr
@@ -201,7 +201,8 @@ list".format(invalidHutches)
 		one pmgrObj can be used at a time, entries for objType and hutch must be
 		a single objType and hutch, not multiple.
 		"""
-		if not isinstance(objType,basestring) or not isinstance(hutch,basestring):
+		if not isinstance(objType, basestring) or 
+			not isinstance(hutch, basestring):
 			raise typeError('str')
 		if objType.lower() not in self._allObjTypes:
 			raise InvalidObjTypeError(objType)
@@ -345,11 +346,10 @@ list".format(invalidHutches)
 	#                                  Search                                   #
 	#############################################################################
 
-	def Search(self, *args, **kwargs):
+	def search(self, *args, **kwargs):
 		raise NotImplementedError()
 
-	def _search(self, *args, **kwargs):
-		
+	def _search(self, *args, **kwargs):		
 		raise NotImplementedError()
 
 	def _getObjWithID(self, devID, fldID):
@@ -368,8 +368,24 @@ list".format(invalidHutches)
 	#############################################################################
 	#                                   View                                    #
 	#############################################################################
+	
+	# Rething what the purpose of view should be - most likely it shouldnt be a 
+	# method but a function that simply prints pandas dataframes in a nice way.
 
-	def View(self, *args, **kwargs):
+	# This gets at the crux of what devconfig is supposed to be. It should just
+	# sit above the pmgr and be returning pandas dataframes containing the
+	# requested info from the pmgr - not serve as the gui.
+
+	# The whole reasoning is to provide a separation between the interface and 
+	# actual code so that each can be upgraded separately.
+
+	# Therefor "view" should be remade to be redone to function as a "get" which
+	# simply returns a fully filled out pandas dataframe and a separate view 
+	# function should reside outside the object definition (maybe even in its
+	# own module).
+
+
+	def view(self, *args, **kwargs):
 		"""
 		Prints a dataframe containing the pertinent information about a device
 		inputted by PV or SN. Will return a search if the inputs could not be 
@@ -716,53 +732,48 @@ Parameter Manager!"
 				fldDict[fld] = str(pmgrObj[fld])
 		return fldDict
 		
-	#############################################################################
-	#                                   Import                                  #
-	#############################################################################
-
-	def Import(self):
-		raise NotImplementedError()
 
 	#############################################################################
 	#                                    New                                    #
 	#############################################################################
 
-	def New(self):
+	def new(self):
+		# New will contain the code for import
 		raise NotImplementedError()
 
 	#############################################################################
 	#                                    Edit                                   #
 	#############################################################################
 	
-	def Edit(self):
+	def edit(self):
 		raise NotImplementedError()
 
 	#############################################################################
 	#                                    Save                                   #
 	#############################################################################
 
-	def Save(self):
+	def save(self):
 		raise NotImplementedError()
 
 	#############################################################################
 	#                                   Apply                                   #
 	#############################################################################
 
-	def Apply(self):
+	def apply(self):
 		raise NotImplementedError()
 
 	#############################################################################
 	#                                   Revert                                  #
 	#############################################################################
 
-	def Revert(self):
+	def revert(self):
 		raise NotImplementedError()
 
 	#############################################################################
 	#                                   Refresh                                 #
 	#############################################################################
 
-	def Refresh(self, mode = None):
+	def refresh(self, mode = None):
 		"""Reinitializes the metadata using the pmgr or the csv."""
 		self._setMode(local)
 		self._setAttrs()
@@ -771,7 +782,7 @@ Parameter Manager!"
 	#                                    Pmgr                                   #
 	#############################################################################
 
-	def Pmgr(self):
+	def pmgr(self):
 		raise NotImplementedError()
 
 	#############################################################################
